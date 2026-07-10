@@ -1,0 +1,535 @@
+{
+  "death_record_quality": {
+    "source": "C:\\Users\\User\\YandexDisk\\#9 МЕДИЦИНА ДВ\\3. Рабочие материалы\\Сахалинская обл\\смертность с 2016 _ v3.xlsx",
+    "raw_rows": 66415,
+    "period_start": 2016,
+    "period_end": 2025,
+    "period_rows": 64677,
+    "partial_2026_rows_excluded": 1673,
+    "other_out_of_period_rows_excluded": 65,
+    "missing_death_date_period": 0,
+    "missing_icd_period": 0,
+    "unmapped_icd_period": 0,
+    "missing_age_period": 10,
+    "missing_municipality_period": 991,
+    "missing_settlement_period": 2729,
+    "rows_by_year": {
+      "2016": 6408,
+      "2017": 5879,
+      "2018": 6192,
+      "2019": 6042,
+      "2020": 6703,
+      "2021": 7435,
+      "2022": 6398,
+      "2023": 6297,
+      "2024": 6715,
+      "2025": 6608
+    }
+  },
+  "population_quality": {
+    "population_sources": {
+      "2016": {
+        "path": "C:\\Users\\User\\YandexDisk\\#9 МЕДИЦИНА ДВ\\1.QGIS\\НП_СХ_Смертность_2016.gpkg",
+        "rows": 261
+      },
+      "2020": {
+        "path": "C:\\Users\\User\\YandexDisk\\#9 МЕДИЦИНА ДВ\\1.QGIS\\НП_СХ_Смертность_2020.gpkg",
+        "rows": 261
+      },
+      "2025": {
+        "path": "C:\\Users\\User\\YandexDisk\\#9 МЕДИЦИНА ДВ\\1.QGIS\\НП_СХ_Смертность_2025.gpkg",
+        "rows": 261
+      }
+    },
+    "population_column_map": {
+      "0": "0 пер",
+      "1_4": "1 4 пер",
+      "5_9": "5 9 пер",
+      "10_14": "10 14 пер",
+      "15_19": "15 19 пер",
+      "20_24": "20 24 пер",
+      "25_29": "25 29 пер",
+      "30_34": "30 34 пер",
+      "35_39": "35 39 пер",
+      "40_44": "40 44 пер",
+      "45_49": "45 49 пер",
+      "50_54": "50 54 пер",
+      "55_59": "54 59 пер",
+      "60_64": "60 64 пер",
+      "65_69": "65 69 пер",
+      "70_74": "70 74 пер",
+      "75_79": "75 79 пер",
+      "80_plus": "80 и более_пер"
+    },
+    "unmatched_population_keys": {
+      "2016": [],
+      "2020": [],
+      "2025": []
+    }
+  },
+  "municipality_mapping": {
+    "target_year_deaths": 19719,
+    "unmapped_target_year_deaths": 282,
+    "unmapped_target_year_death_share": 0.014300928038947208,
+    "unmapped_municipalities": [
+      {
+        "municipality": "Муниципалитет не указан",
+        "mo_key": "муниципалитет не указан",
+        "deaths": 282
+      }
+    ]
+  },
+  "population_total_check": [
+    {
+      "year": 2016,
+      "mo_key": "александровск-сахалинский",
+      "population_from_age_bands": 10221.0,
+      "mo_name": "Александровск-Сахалинский",
+      "pop_2025": 10221.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "анивский",
+      "population_from_age_bands": 20999.0,
+      "mo_name": "Анивский",
+      "pop_2025": 20999.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "долинский",
+      "population_from_age_bands": 22378.0,
+      "mo_name": "Долинский",
+      "pop_2025": 22378.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "корсаковский",
+      "population_from_age_bands": 40798.0,
+      "mo_name": "Корсаковский",
+      "pop_2025": 40798.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "курильский",
+      "population_from_age_bands": 6874.0,
+      "mo_name": "Курильский",
+      "pop_2025": 6874.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "макаровский",
+      "population_from_age_bands": 7090.0,
+      "mo_name": "Макаровский",
+      "pop_2025": 7090.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "невельский",
+      "population_from_age_bands": 12138.0,
+      "mo_name": "Невельский",
+      "pop_2025": 12138.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "ногликский",
+      "population_from_age_bands": 12222.0,
+      "mo_name": "Ногликский",
+      "pop_2025": 12222.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "охинский",
+      "population_from_age_bands": 42377.0,
+      "mo_name": "Охинский",
+      "pop_2025": 42332.0,
+      "difference_vs_master_pop_2025": 45.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "поронайский",
+      "population_from_age_bands": 19365.0,
+      "mo_name": "Поронайский",
+      "pop_2025": 19365.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "северо-курильский",
+      "population_from_age_bands": 2374.0,
+      "mo_name": "Северо-Курильский",
+      "pop_2025": 2374.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "смирныховский",
+      "population_from_age_bands": 11542.0,
+      "mo_name": "Смирныховский",
+      "pop_2025": 11542.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "томаринский",
+      "population_from_age_bands": 8332.0,
+      "mo_name": "Томаринский",
+      "pop_2025": 8332.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "тымовский",
+      "population_from_age_bands": 14611.0,
+      "mo_name": "Тымовский",
+      "pop_2025": 14611.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "углегорский",
+      "population_from_age_bands": 17090.0,
+      "mo_name": "Углегорский",
+      "pop_2025": 17090.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "холмский",
+      "population_from_age_bands": 33910.0,
+      "mo_name": "Холмский",
+      "pop_2025": 33955.0,
+      "difference_vs_master_pop_2025": -45.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "южно-курильский",
+      "population_from_age_bands": 11483.0,
+      "mo_name": "Южно-Курильский",
+      "pop_2025": 11483.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2016,
+      "mo_key": "южно-сахалинск",
+      "population_from_age_bands": 188388.0,
+      "mo_name": "Южно-Сахалинск",
+      "pop_2025": 188489.0,
+      "difference_vs_master_pop_2025": -101.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "александровск-сахалинский",
+      "population_from_age_bands": 10221.0,
+      "mo_name": "Александровск-Сахалинский",
+      "pop_2025": 10221.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "анивский",
+      "population_from_age_bands": 20999.0,
+      "mo_name": "Анивский",
+      "pop_2025": 20999.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "долинский",
+      "population_from_age_bands": 22378.0,
+      "mo_name": "Долинский",
+      "pop_2025": 22378.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "корсаковский",
+      "population_from_age_bands": 40798.0,
+      "mo_name": "Корсаковский",
+      "pop_2025": 40798.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "курильский",
+      "population_from_age_bands": 6874.0,
+      "mo_name": "Курильский",
+      "pop_2025": 6874.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "макаровский",
+      "population_from_age_bands": 7090.0,
+      "mo_name": "Макаровский",
+      "pop_2025": 7090.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "невельский",
+      "population_from_age_bands": 12138.0,
+      "mo_name": "Невельский",
+      "pop_2025": 12138.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "ногликский",
+      "population_from_age_bands": 12222.0,
+      "mo_name": "Ногликский",
+      "pop_2025": 12222.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "охинский",
+      "population_from_age_bands": 42377.0,
+      "mo_name": "Охинский",
+      "pop_2025": 42332.0,
+      "difference_vs_master_pop_2025": 45.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "поронайский",
+      "population_from_age_bands": 19365.0,
+      "mo_name": "Поронайский",
+      "pop_2025": 19365.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "северо-курильский",
+      "population_from_age_bands": 2374.0,
+      "mo_name": "Северо-Курильский",
+      "pop_2025": 2374.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "смирныховский",
+      "population_from_age_bands": 11542.0,
+      "mo_name": "Смирныховский",
+      "pop_2025": 11542.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "томаринский",
+      "population_from_age_bands": 8332.0,
+      "mo_name": "Томаринский",
+      "pop_2025": 8332.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "тымовский",
+      "population_from_age_bands": 14611.0,
+      "mo_name": "Тымовский",
+      "pop_2025": 14611.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "углегорский",
+      "population_from_age_bands": 17090.0,
+      "mo_name": "Углегорский",
+      "pop_2025": 17090.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "холмский",
+      "population_from_age_bands": 33910.0,
+      "mo_name": "Холмский",
+      "pop_2025": 33955.0,
+      "difference_vs_master_pop_2025": -45.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "южно-курильский",
+      "population_from_age_bands": 11483.0,
+      "mo_name": "Южно-Курильский",
+      "pop_2025": 11483.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2020,
+      "mo_key": "южно-сахалинск",
+      "population_from_age_bands": 188388.0,
+      "mo_name": "Южно-Сахалинск",
+      "pop_2025": 188489.0,
+      "difference_vs_master_pop_2025": -101.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "александровск-сахалинский",
+      "population_from_age_bands": 10221.0,
+      "mo_name": "Александровск-Сахалинский",
+      "pop_2025": 10221.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "анивский",
+      "population_from_age_bands": 20999.0,
+      "mo_name": "Анивский",
+      "pop_2025": 20999.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "долинский",
+      "population_from_age_bands": 22378.0,
+      "mo_name": "Долинский",
+      "pop_2025": 22378.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "корсаковский",
+      "population_from_age_bands": 40798.0,
+      "mo_name": "Корсаковский",
+      "pop_2025": 40798.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "курильский",
+      "population_from_age_bands": 6874.0,
+      "mo_name": "Курильский",
+      "pop_2025": 6874.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "макаровский",
+      "population_from_age_bands": 7090.0,
+      "mo_name": "Макаровский",
+      "pop_2025": 7090.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "невельский",
+      "population_from_age_bands": 12138.0,
+      "mo_name": "Невельский",
+      "pop_2025": 12138.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "ногликский",
+      "population_from_age_bands": 12222.0,
+      "mo_name": "Ногликский",
+      "pop_2025": 12222.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "охинский",
+      "population_from_age_bands": 42377.0,
+      "mo_name": "Охинский",
+      "pop_2025": 42332.0,
+      "difference_vs_master_pop_2025": 45.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "поронайский",
+      "population_from_age_bands": 19365.0,
+      "mo_name": "Поронайский",
+      "pop_2025": 19365.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "северо-курильский",
+      "population_from_age_bands": 2374.0,
+      "mo_name": "Северо-Курильский",
+      "pop_2025": 2374.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "смирныховский",
+      "population_from_age_bands": 11542.0,
+      "mo_name": "Смирныховский",
+      "pop_2025": 11542.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "томаринский",
+      "population_from_age_bands": 8332.0,
+      "mo_name": "Томаринский",
+      "pop_2025": 8332.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "тымовский",
+      "population_from_age_bands": 14611.0,
+      "mo_name": "Тымовский",
+      "pop_2025": 14611.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "углегорский",
+      "population_from_age_bands": 17090.0,
+      "mo_name": "Углегорский",
+      "pop_2025": 17090.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "холмский",
+      "population_from_age_bands": 33910.0,
+      "mo_name": "Холмский",
+      "pop_2025": 33955.0,
+      "difference_vs_master_pop_2025": -45.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "южно-курильский",
+      "population_from_age_bands": 11483.0,
+      "mo_name": "Южно-Курильский",
+      "pop_2025": 11483.0,
+      "difference_vs_master_pop_2025": 0.0
+    },
+    {
+      "year": 2025,
+      "mo_key": "южно-сахалинск",
+      "population_from_age_bands": 188388.0,
+      "mo_name": "Южно-Сахалинск",
+      "pop_2025": 188489.0,
+      "difference_vs_master_pop_2025": -101.0
+    }
+  ],
+  "all_master_population_columns_identical_2016_2020_2025": true,
+  "alcohol_status": {
+    "corrected_alcohol_column": null,
+    "status": "blocked_corrected_alcohol_layer_absent"
+  },
+  "rate_multiplier": 100000,
+  "anchor_years": [
+    2016,
+    2020,
+    2025
+  ],
+  "focus_classes": [
+    "IX",
+    "II",
+    "XIX",
+    "IV",
+    "X",
+    "XI"
+  ]
+}

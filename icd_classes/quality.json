@@ -1,0 +1,119 @@
+{
+  "source": "C:\\Users\\User\\YandexDisk\\#9 МЕДИЦИНА ДВ\\3. Рабочие материалы\\Сахалинская обл\\смертность с 2016 _ v3.xlsx",
+  "raw_rows": 66415,
+  "period_start": 2016,
+  "period_end": 2025,
+  "period_rows": 64677,
+  "partial_2026_rows_excluded": 1673,
+  "other_out_of_period_rows_excluded": 65,
+  "missing_death_date_period": 0,
+  "missing_icd_period": 0,
+  "unmapped_icd_period": 0,
+  "missing_age_period": 10,
+  "missing_municipality_period": 991,
+  "missing_settlement_period": 2729,
+  "rows_by_year": {
+    "2016": 6408,
+    "2017": 5879,
+    "2018": 6192,
+    "2019": 6042,
+    "2020": 6703,
+    "2021": 7435,
+    "2022": 6398,
+    "2023": 6297,
+    "2024": 6715,
+    "2025": 6608
+  },
+  "official_comparison": [
+    {
+      "year": 2016,
+      "listed_deaths": 6408,
+      "listed_with_settlement": 5866,
+      "listed_without_settlement": 542,
+      "rosstat_deaths": 6397.0,
+      "difference_vs_rosstat": -11.0,
+      "coverage_vs_rosstat": 1.0017195560418946
+    },
+    {
+      "year": 2017,
+      "listed_deaths": 5879,
+      "listed_with_settlement": 5408,
+      "listed_without_settlement": 471,
+      "rosstat_deaths": 5879.0,
+      "difference_vs_rosstat": 0.0,
+      "coverage_vs_rosstat": 1.0
+    },
+    {
+      "year": 2018,
+      "listed_deaths": 6192,
+      "listed_with_settlement": 5680,
+      "listed_without_settlement": 512,
+      "rosstat_deaths": 6201.0,
+      "difference_vs_rosstat": 9.0,
+      "coverage_vs_rosstat": 0.9985486211901307
+    },
+    {
+      "year": 2019,
+      "listed_deaths": 6042,
+      "listed_with_settlement": 5670,
+      "listed_without_settlement": 372,
+      "rosstat_deaths": 6126.0,
+      "difference_vs_rosstat": 84.0,
+      "coverage_vs_rosstat": 0.9862879529872673
+    },
+    {
+      "year": 2020,
+      "listed_deaths": 6703,
+      "listed_with_settlement": 6517,
+      "listed_without_settlement": 186,
+      "rosstat_deaths": 6693.0,
+      "difference_vs_rosstat": -10.0,
+      "coverage_vs_rosstat": 1.001494098311669
+    },
+    {
+      "year": 2021,
+      "listed_deaths": 7435,
+      "listed_with_settlement": 7218,
+      "listed_without_settlement": 217,
+      "rosstat_deaths": 7587.0,
+      "difference_vs_rosstat": 152.0,
+      "coverage_vs_rosstat": 0.9799657308554106
+    },
+    {
+      "year": 2022,
+      "listed_deaths": 6398,
+      "listed_with_settlement": 6324,
+      "listed_without_settlement": 74,
+      "rosstat_deaths": 6393.0,
+      "difference_vs_rosstat": -5.0,
+      "coverage_vs_rosstat": 1.0007821054278117
+    },
+    {
+      "year": 2023,
+      "listed_deaths": 6297,
+      "listed_with_settlement": 6187,
+      "listed_without_settlement": 110,
+      "rosstat_deaths": 6192.0,
+      "difference_vs_rosstat": -105.0,
+      "coverage_vs_rosstat": 1.0169573643410852
+    },
+    {
+      "year": 2024,
+      "listed_deaths": 6715,
+      "listed_with_settlement": 6584,
+      "listed_without_settlement": 131,
+      "rosstat_deaths": 6477.0,
+      "difference_vs_rosstat": -238.0,
+      "coverage_vs_rosstat": 1.036745406824147
+    },
+    {
+      "year": 2025,
+      "listed_deaths": 6608,
+      "listed_with_settlement": 6494,
+      "listed_without_settlement": 114,
+      "rosstat_deaths": NaN,
+      "difference_vs_rosstat": NaN,
+      "coverage_vs_rosstat": NaN
+    }
+  ]
+}
