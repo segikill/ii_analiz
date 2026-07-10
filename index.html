@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Отчеты по смертности</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --surface: #f7f8fb;
+      --panel: #ffffff;
+      --ink: #202733;
+      --muted: #667085;
+      --line: #dfe4ee;
+      --blue: #365f9d;
+      --teal: #2e7d8b;
+      --gold: #b68122;
+      --rose: #b54e68;
+      --shadow: 0 18px 44px rgba(31, 39, 51, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--surface);
+      color: var(--ink);
+      font-family: "Segoe UI", Arial, sans-serif;
+      line-height: 1.5;
+    }
+
+    body::before {
+      content: "";
+      display: block;
+      height: 5px;
+      background: linear-gradient(90deg, var(--blue), var(--teal), var(--gold), var(--rose));
+    }
+
+    main {
+      width: min(1120px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 42px 0 56px;
+    }
+
+    header {
+      padding: 0 0 28px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(30px, 4vw, 46px);
+      line-height: 1.08;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 17px;
+    }
+
+    .reports {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+      margin-top: 28px;
+    }
+
+    .report {
+      display: flex;
+      min-height: 250px;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 24px;
+      padding: 20px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      text-decoration: none;
+      color: inherit;
+      transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+    }
+
+    .report:hover,
+    .report:focus-visible {
+      transform: translateY(-2px);
+      border-color: var(--blue);
+      box-shadow: 0 22px 54px rgba(31, 39, 51, 0.12);
+      outline: none;
+    }
+
+    .kicker {
+      display: inline-flex;
+      width: fit-content;
+      align-items: center;
+      min-height: 28px;
+      padding: 3px 10px;
+      border-radius: 999px;
+      background: #eef3fb;
+      color: var(--blue);
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    h2 {
+      margin: 14px 0 10px;
+      font-size: 22px;
+      line-height: 1.18;
+      letter-spacing: 0;
+    }
+
+    .report p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 15px;
+    }
+
+    .action {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--blue);
+      font-weight: 700;
+    }
+
+    .action::after {
+      content: ">";
+      font-size: 18px;
+      line-height: 1;
+    }
+
+    footer {
+      margin-top: 26px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 860px) {
+      main {
+        padding-top: 30px;
+      }
+
+      .reports {
+        grid-template-columns: 1fr;
+      }
+
+      .report {
+        min-height: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Отчеты по смертности</h1>
+      <p class="lead">Три опубликованных аналитических отчета с графиками, таблицами и выводами по структуре смертности и причинам смерти.</p>
+    </header>
+
+    <section class="reports" aria-label="Список отчетов">
+      <a class="report" href="icd_classes/icd_class_report.html">
+        <span>
+          <span class="kicker">МКБ-10</span>
+          <h2>Смертность по классам МКБ-10, 2016-2025</h2>
+          <p>Общий рейтинг классов, динамика по годам, возрастно-половой профиль и крупнейшие трехзначные коды.</p>
+        </span>
+        <span class="action">Открыть отчет</span>
+      </a>
+
+      <a class="report" href="icd_age_standardized/icd_age_standardized_report.html">
+        <span>
+          <span class="kicker">Стандартизация</span>
+          <h2>Возрастная стандартизация смертности по классам МКБ</h2>
+          <p>Сравнение муниципалитетов с учетом возрастной структуры и проверка сдвигов районных рангов.</p>
+        </span>
+        <span class="action">Открыть отчет</span>
+      </a>
+
+      <a class="report" href="mortality_cause_chains/report.html">
+        <span>
+          <span class="kicker">Причины смерти</span>
+          <h2>Алкоголь-ассоциированная смертность</h2>
+          <p>Цепочки причин смерти, позиции кодов, годовая динамика, возрастные ставки и первичные группы.</p>
+        </span>
+        <span class="action">Открыть отчет</span>
+      </a>
+    </section>
+
+    <footer>Источник: репозиторий segikill/ii_analiz.</footer>
+  </main>
+</body>
+</html>
