@@ -64,11 +64,34 @@
       font-size: 17px;
     }
 
+    .region {
+      margin-top: 32px;
+    }
+
+    .region-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    .region-title {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    .region-link {
+      color: var(--blue);
+      text-decoration: none;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
     .reports {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 16px;
-      margin-top: 28px;
     }
 
     .report {
@@ -93,6 +116,15 @@
       border-color: var(--blue);
       box-shadow: 0 22px 54px rgba(31, 39, 51, 0.12);
       outline: none;
+    }
+
+    .report.featured {
+      border: 2px solid var(--blue);
+      background: linear-gradient(145deg, #ffffff, #f0f5ff);
+    }
+
+    .reports.single {
+      grid-template-columns: minmax(0, 540px);
     }
 
     .kicker {
@@ -160,10 +192,24 @@
   <main>
     <header>
       <h1>Отчеты по смертности</h1>
-      <p class="lead">Три опубликованных аналитических отчета с графиками, таблицами и выводами по структуре смертности и причинам смерти.</p>
+      <p class="lead">Пять аналитических отчётов по Сахалинской и Амурской областям: два общих региональных обзора и три специализированных исследования.</p>
     </header>
 
-    <section class="reports" aria-label="Список отчетов">
+    <section class="region" aria-labelledby="sakhalin-title">
+      <div class="region-head">
+        <h2 class="region-title" id="sakhalin-title">Сахалинская область</h2>
+        <a class="region-link" href="sakhalin/index.html">Страница региона →</a>
+      </div>
+      <div class="reports" aria-label="Отчёты Сахалинской области">
+      <a class="report featured" href="sakhalin/full_report.html">
+        <span>
+          <span class="kicker">Новый · общий</span>
+          <h2>Полный аналитический отчёт, 2016–2025</h2>
+          <p>Динамика, МКБ-10, возраст, ПГПЖ-75, онкология, медицинский контакт, муниципалитеты и населённые пункты.</p>
+        </span>
+        <span class="action">Открыть отчёт</span>
+      </a>
+
       <a class="report" href="icd_classes/icd_class_report.html">
         <span>
           <span class="kicker">МКБ-10</span>
@@ -190,9 +236,34 @@
         </span>
         <span class="action">Открыть отчет</span>
       </a>
+      </div>
     </section>
 
-    <footer>Источник: репозиторий segikill/ii_analiz.</footer>
+    <section class="region" aria-labelledby="amur-title">
+      <div class="region-head">
+        <h2 class="region-title" id="amur-title">Амурская область</h2>
+        <a class="region-link" href="amur/index.html">Страница региона →</a>
+      </div>
+      <div class="reports single" aria-label="Отчёты Амурской области">
+        <a class="report featured" href="amur/full_report.html">
+          <span>
+            <span class="kicker">Общий отчёт</span>
+            <h2>Полный аналитический отчёт, 2023–2025</h2>
+            <p>45 инфографик: структура МКБ, возраст, ПГПЖ-75, онкология, оформление документов, слой населённых пунктов и аномалии.</p>
+          </span>
+          <span class="action">Открыть отчёт</span>
+        </a>
+      </div>
+    </section>
+
+    <footer>
+      Источник: репозиторий segikill/ii_analiz.
+      <span style="display: inline-flex; align-items: center; gap: 8px; margin-left: 12px;">
+        <a href="https://hits.sh/segikill.github.io/ii_analiz/" target="_blank" rel="noopener noreferrer" aria-label="Статистика просмотров главной страницы">
+          <img alt="Просмотры главной страницы" src="https://hits.sh/segikill.github.io/ii_analiz.svg?label=views&color=365f9d&labelColor=667085" style="width: auto; height: 20px; vertical-align: middle;">
+        </a>
+      </span>
+    </footer>
   </main>
 </body>
 </html>
