@@ -119,12 +119,36 @@ p.note {
   outline-offset: 3px;
 }
 
+.tile,
+.tile .tile-inner,
+.tile .tile-code,
+.tile .tile-label,
+.tile .tile-value {
+  color: #fff !important;
+}
+
 .tile .tile-inner {
-  text-shadow: none !important;
+  text-shadow: 0 1px 3px rgba(7, 19, 38, .72) !important;
+}
+
+.tile .tile-code {
+  font-size: 13px !important;
+  line-height: 1.05 !important;
+}
+
+.tile .tile-label {
+  font-size: 12px !important;
+  line-height: 1.1 !important;
 }
 
 .tile .tile-value {
-  font-size: 11px !important;
+  font-size: 9.5px !important;
+}
+
+.tile.small .tile-code,
+.tile.small .tile-label,
+.tile.small .tile-value {
+  font-size: 8.5px !important;
 }
 
 .atlas-actions {
@@ -216,9 +240,73 @@ p.note {
 }
 
 svg .site-atlas-highlight {
+  outline: none !important;
+  outline-offset: 0 !important;
   stroke: var(--site-focus) !important;
   stroke-width: 5px !important;
+  stroke-linecap: round !important;
+  stroke-linejoin: round !important;
   opacity: 1 !important;
+}
+
+#viz svg [role="button"]:focus,
+#viz svg [role="button"]:focus-visible {
+  outline: none !important;
+}
+
+#viz svg path {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.map-center-marker {
+  fill: #183f6f;
+  stroke: #fff;
+  stroke-width: 1.4px;
+  pointer-events: none;
+}
+
+.map-center-label {
+  fill: #163552;
+  stroke: #fff;
+  stroke-width: 3.6px;
+  paint-order: stroke;
+  font-size: 10px;
+  font-weight: 850;
+  letter-spacing: .01em;
+  pointer-events: none;
+}
+
+.dot-row-guide {
+  stroke: #dce5f1;
+  stroke-width: 1px;
+}
+
+.dot-median-line {
+  stroke: #284f88;
+  stroke-width: 1.5px;
+  stroke-dasharray: 5 5;
+  opacity: .82;
+}
+
+.dot-median-label,
+.dot-value-label,
+.dot-label {
+  fill: #17324f;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.dot-label-bg {
+  fill: rgba(255, 255, 255, .94);
+  stroke: #c9d7e8;
+  stroke-width: 1px;
+}
+
+.dot-label-leader {
+  stroke: #8093ab;
+  stroke-width: 1px;
+  fill: none;
 }
 
 .site-catalog-tools {
