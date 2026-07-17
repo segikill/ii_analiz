@@ -1,0 +1,13 @@
+{
+  "source": "C:\\Users\\User\\Documents\\Смертность\\input\\BETA_Смертность Сахалинской области_.xlsx",
+  "period_start": 2016,
+  "period_end": 2025,
+  "period_rows": 64677,
+  "mapped_icd_rows": 64677,
+  "unmapped_icd_rows": 0,
+  "mapped_share": 1.0,
+  "valid_age_rows": 64662,
+  "unknown_sex_rows": 1,
+  "unmatched_block_rows": 0,
+  "generated_at": "2026-07-17T10:57:46"
+}
