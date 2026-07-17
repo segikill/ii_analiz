@@ -99,26 +99,32 @@ def main() -> None:
     if "перечень НП в неё не включён" not in atlas_script:
         errors.append("assets/site.js: экспорт должен явно исключать перечень НП")
 
-    tables = ROOT / "sakhalin" / "icd_treemap" / "tables"
-    quality = json.loads((tables / "quality.json").read_text(encoding="utf-8"))
+    for region in ("sakhalin", "amur"):
+        tables = ROOT / region / "icd_treemap" / "tables"
+        quality = json.loads((tables / "quality.json").read_text(encoding="utf-8"))
 
-    def csv_total(filename: str) -> int:
-        with (tables / filename).open(encoding="utf-8-sig", newline="") as source:
-            return sum(int(row["deaths"]) for row in csv.DictReader(source))
+        def csv_total(filename: str) -> int:
+            with (tables / filename).open(encoding="utf-8-sig", newline="") as source:
+                return sum(int(row["deaths"]) for row in csv.DictReader(source))
 
-    reconciliations = {
-        "class_year.csv": quality["mapped_icd"],
-        "municipality_class.csv": quality["municipality_mapped"],
-        "settlement_summary.csv": quality["settlement_coordinate_mapped"],
-    }
-    for filename, expected in reconciliations.items():
-        actual = csv_total(filename)
-        if actual != expected:
-            errors.append(f"{filename}: сумма {actual}, ожидалось {expected}")
-    if "\\" in quality["source"] or "/" in quality["source"]:
-        errors.append("quality.json: опубликован абсолютный путь к исходному файлу")
-    if "\\" in quality["coordinate_reference"] or "/" in quality["coordinate_reference"]:
-        errors.append("quality.json: опубликован абсолютный путь к справочнику координат")
+        reconciliations = {
+            "class_year.csv": quality["mapped_icd"],
+            "municipality_class.csv": quality.get("municipality_icd_mapped", quality["municipality_mapped"]),
+        }
+        if region == "sakhalin":
+            reconciliations["settlement_summary.csv"] = quality["settlement_coordinate_mapped"]
+        for filename, expected in reconciliations.items():
+            actual = csv_total(filename)
+            if actual != expected:
+                errors.append(f"{region}/{filename}: сумма {actual}, ожидалось {expected}")
+        if "\\" in quality["source"] or "/" in quality["source"]:
+            errors.append(f"{region}/quality.json: опубликован абсолютный путь к исходному файлу")
+        if "\\" in quality["coordinate_reference"] or "/" in quality["coordinate_reference"]:
+            errors.append(f"{region}/quality.json: опубликован абсолютный путь к справочнику координат")
+
+    amur_page = (ROOT / "amur" / "icd_treemap" / "index.html").read_text(encoding="utf-8")
+    if "settlement_summary.csv" in amur_page or (ROOT / "amur" / "icd_treemap" / "tables" / "settlement_summary.csv").exists():
+        errors.append("amur/icd_treemap: не должна публиковаться выгрузка перечня НП")
 
     if errors:
         print("Site validation failed:")

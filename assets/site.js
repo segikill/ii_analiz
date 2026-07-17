@@ -13,6 +13,7 @@
     { match: "/sakhalin/icd_age_atlas/index.html", region: "Сахалинская область", regionPath: "sakhalin/index.html", label: "Возраст × МКБ-10", period: "2016–2025", kind: "Атлас" },
     { match: "/amur/icd_age_atlas/index.html", region: "Амурская область", regionPath: "amur/index.html", label: "Возраст × МКБ-10", period: "2023–2025", kind: "Атлас" },
     { match: "/sakhalin/icd_treemap/index.html", region: "Сахалинская область", regionPath: "sakhalin/index.html", label: "Интерактивный атлас смертности", period: "2016–2025", kind: "Интерактивный отчёт" },
+    { match: "/amur/icd_treemap/index.html", region: "Амурская область", regionPath: "amur/index.html", label: "Интерактивный атлас смертности", period: "2023–2025", kind: "Интерактивный отчёт" },
     { match: "/icd_classes/icd_class_report.html", region: "Сахалинская область", regionPath: "sakhalin/index.html", label: "Классы МКБ-10", period: "2016–2025", kind: "Специальный анализ" },
     { match: "/icd_age_standardized/icd_age_standardized_report.html", region: "Сахалинская область", regionPath: "sakhalin/index.html", label: "Возрастная стандартизация", period: "2016–2025", kind: "Специальный анализ" },
     { match: "/mortality_cause_chains/report.html", region: "Сахалинская область", regionPath: "sakhalin/index.html", label: "Алкоголь-ассоциированная смертность", period: "2016–2025", kind: "Специальный анализ" }
@@ -89,8 +90,10 @@
   }
 
   const enhanceAtlas = () => {
-    if (!page || !page.match.endsWith("/sakhalin/icd_treemap/index.html")) return;
+    if (!page || !page.match.endsWith("/icd_treemap/index.html")) return;
     if (typeof state === "undefined" || typeof render !== "function" || typeof DATA === "undefined") return;
+
+    const exportPrefix = DATA.regionKey || (page.match.includes("/amur/") ? "amur" : "sakhalin");
 
     const defaults = { ...state };
     const enumValues = {
@@ -340,7 +343,7 @@
       const style = document.createElementNS("http://www.w3.org/2000/svg", "style");
       style.textContent = ".axis{stroke:#aeb9ca}.gridline{stroke:#e5eaf2}.axis-label{fill:#68758a;font:11px Arial}.row-label{fill:#344054;font:11px Arial}";
       clone.prepend(style);
-      downloadBlob(new XMLSerializer().serializeToString(clone), "image/svg+xml;charset=utf-8", `sakhalin-${state.view}.svg`);
+      downloadBlob(new XMLSerializer().serializeToString(clone), "image/svg+xml;charset=utf-8", `${exportPrefix}-${state.view}.svg`);
       setStatus("SVG текущего графика подготовлен.");
     };
 
@@ -354,7 +357,7 @@
       const header = ["Класс", "Название", "Смертей", "Доля выборки, %", "Медианный возраст", "ПГПЖ-75"];
       const quote = (value) => `"${String(value ?? "").replace(/"/g, '""')}"`;
       const csv = "\uFEFF" + [header, ...grouped].map((row) => row.map(quote).join(";")).join("\r\n");
-      downloadBlob(csv, "text/csv;charset=utf-8", "sakhalin-current-filter-class-summary.csv");
+      downloadBlob(csv, "text/csv;charset=utf-8", `${exportPrefix}-current-filter-class-summary.csv`);
       setStatus("Агрегированная сводка по классам подготовлена; перечень НП в неё не включён.");
     };
 
