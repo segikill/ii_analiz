@@ -1,6 +1,6 @@
 {
   "report": "index.html",
-  "html_bytes": 1184144,
+  "html_bytes": 1202507,
   "records": 32942,
   "visualizations": [
     "treemap",
@@ -60,7 +60,18 @@
     "classes": 22,
     "blocks": 134,
     "codes": 578,
-    "generated_at": "2026-07-17T15:40:06",
+    "population_source": "Амурская.xlsx",
+    "population_year": 2021,
+    "population_region_total": 764218,
+    "population_settlements_linked": 632,
+    "population_settlements_positive": 573,
+    "population_settlements_missing": 59,
+    "population_municipalities_linked": 29,
+    "population_municipality_method": "sum of settlement populations by municipality",
+    "population_settlement_death_records_eligible": 29805,
+    "population_settlement_death_records_without_positive_denominator": 25,
+    "population_rate_formula": "filtered deaths / population_2021 * 10,000 or 100,000; cumulative for multi-year filters",
+    "generated_at": "2026-07-17T16:12:22",
     "privacy": "Only anonymized analytical dimensions are embedded; death record IDs, addresses and names are excluded."
   }
 }

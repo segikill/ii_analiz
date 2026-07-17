@@ -17,5 +17,15 @@
   "blocks": 151,
   "codes": 604,
   "unmatched_block_rows": 0,
-  "generated_at": "2026-07-17T11:52:05"
+  "population_source": "Перепись_2021(связь)(Сахалинская область).xlsx",
+  "population_year": 2021,
+  "population_region_total": 482293,
+  "population_settlements_linked": 220,
+  "population_settlements_positive": 189,
+  "population_settlements_zero": 31,
+  "population_municipalities_linked": 18,
+  "population_settlement_death_records_eligible": 58541,
+  "population_settlement_death_records_without_positive_denominator": 357,
+  "population_rate_formula": "filtered deaths / population_2021 * 10,000 or 100,000; cumulative for multi-year filters",
+  "generated_at": "2026-07-17T16:14:38"
 }

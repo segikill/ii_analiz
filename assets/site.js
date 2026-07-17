@@ -95,16 +95,16 @@
       treeMetric: ["n", "share", "pgpzh"],
       treeColor: ["count", "change", "age"],
       heatUnit: ["mo", "settlement"],
-      heatMetric: ["share", "n"],
+      heatMetric: ["share", "n", "per10k", "per100k"],
       heatLimit: ["25", "50", "all"],
       arrowMode: ["time", "sex", "region"],
       pyramidMetric: ["n", "share"],
       plotLevel: ["class", "code"],
       mapUnit: ["settlement", "mo"],
-      mapMetric: ["n", "share"],
+      mapMetric: ["n", "share", "per10k", "per100k"],
       mapLabels: ["key", "off"],
       dotUnit: ["settlement", "mo"],
-      dotMetric: ["n", "share", "median", "pgpzh"],
+      dotMetric: ["n", "share", "median", "pgpzh", "per10k", "per100k"],
       dotLabels: ["outliers", "top", "off"]
     };
     const classKeys = new Set(["pyramidClass", "plotClass", "mapClass", "dotClass"]);
@@ -208,13 +208,15 @@
       }
     };
 
-    const dotMetricValue = (value) => state.dotMetric === "share"
+    const dotMetricValue = (value, definition) => rateBase(state.dotMetric)
+      ? rateValue(value.selected, definition, state.dotMetric)
+      : state.dotMetric === "share"
       ? (state.dotClass === "all" ? value.total / Math.max(filtered().length, 1) * 100 : value.selected / value.total * 100)
       : state.dotMetric === "median" ? quantile(value.ages, .5)
         : state.dotMetric === "pgpzh" ? value.pgpzh : value.selected;
 
     const formatDotValue = (value) => state.dotMetric === "share"
-      ? pct(value) : state.dotMetric === "median" ? DF.format(value) : fmt(value);
+      ? pct(value) : state.dotMetric === "median" || rateBase(state.dotMetric) ? DF.format(value) : fmt(value);
 
     const dotColor = (value) => {
       if (state.dotClass !== "all") return DATA.classes[+state.dotClass]?.color || "#356ae6";
@@ -223,7 +225,7 @@
     };
 
     const drawDotAxis = (chart, scale, domainMin, domainMax, width, height, left, top, bottom) => {
-      const rootScaled = state.dotMetric === "n" || state.dotMetric === "pgpzh";
+      const rootScaled = state.dotMetric === "n" || state.dotMetric === "pgpzh" || Boolean(rateBase(state.dotMetric));
       for (let index = 0; index <= 5; index += 1) {
         const fraction = index / 5;
         const value = domainMin + (domainMax - domainMin) * (rootScaled ? fraction ** 2 : fraction);
@@ -270,7 +272,7 @@
     const enhanceDotogram = () => {
       if (state.view !== "dotogram") return;
       const { defs, map } = geoValues(state.dotUnit, state.dotClass);
-      const values = [...map.values()].map((value) => ({ ...value, value: dotMetricValue(value) })).filter((value) => value.value != null && Number.isFinite(value.value));
+      const values = [...map.values()].map((value) => ({ ...value, value: dotMetricValue(value, defs[value.idx]) })).filter((value) => value.value != null && Number.isFinite(value.value));
       if (!values.length) {
         document.getElementById("viz").innerHTML = '<div class="empty">Нет данных для выбранных фильтров.</div>';
         return;
@@ -283,7 +285,7 @@
       window.__dotValuesForAxis = rawValues;
       const scaleFraction = (value) => {
         const fraction = Math.max(0, Math.min(1, (value - domainMin) / (domainMax - domainMin || 1)));
-        return state.dotMetric === "n" || state.dotMetric === "pgpzh" ? Math.sqrt(fraction) : fraction;
+        return state.dotMetric === "n" || state.dotMetric === "pgpzh" || Boolean(rateBase(state.dotMetric)) ? Math.sqrt(fraction) : fraction;
       };
 
       if (state.dotUnit === "mo") {
@@ -303,7 +305,7 @@
           chart.appendChild(point);
           const anchor = scale(value.value) > width - right - 65 ? "end" : "start";
           textNode(chart, scale(value.value) + (anchor === "end" ? -10 : 10), y + 4, formatDotValue(value.value), "dot-value-label", anchor);
-          addTip(point, `<b>${esc(definition.name)}</b><div class="tip-grid"><span>Значение</span><strong>${formatDotValue(value.value)}</strong><span>Всего</span><strong>${fmt(value.total)}</strong><span>Выбранная причина</span><strong>${fmt(value.selected)}</strong><span>Структура</span><strong>${esc(topClasses(value))}</strong></div>`);
+          addTip(point, `<b>${esc(definition.name)}</b><div class="tip-grid"><span>${territoryMetricLabel(state.dotMetric)}</span><strong>${formatDotValue(value.value)}</strong><span>Население ${DATA.populationYear}</span><strong>${populationValue(definition) ? fmt(populationValue(definition)) : "н/д"}</strong><span>Всего смертей</span><strong>${fmt(value.total)}</strong><span>Выбранная причина</span><strong>${fmt(value.selected)}</strong><span>Структура</span><strong>${esc(topClasses(value))}</strong></div>`);
         });
         document.getElementById("viz").innerHTML = "";
         document.getElementById("viz").appendChild(chart);
@@ -335,7 +337,7 @@
           const point = svg("circle", { cx: x, cy: y, r: 5.5, fill: dotColor(value), opacity: .82, stroke: "#fff", "stroke-width": 1.2 });
           chart.appendChild(point);
           points.push({ x, y, label: definition.name, value: value.value, source: value });
-          addTip(point, `<b>${esc(definition.name)}</b><div class="tip-grid"><span>Муниципалитет</span><strong>${esc(definition.municipality)}</strong><span>Значение</span><strong>${formatDotValue(value.value)}</strong><span>Всего</span><strong>${fmt(value.total)}</strong><span>Выбранная причина</span><strong>${fmt(value.selected)}</strong><span>Структура</span><strong>${esc(topClasses(value))}</strong></div>`);
+          addTip(point, `<b>${esc(definition.name)}</b><div class="tip-grid"><span>Муниципалитет</span><strong>${esc(definition.municipality)}</strong><span>${territoryMetricLabel(state.dotMetric)}</span><strong>${formatDotValue(value.value)}</strong><span>Население ${DATA.populationYear}</span><strong>${populationValue(definition) ? fmt(populationValue(definition)) : "н/д"}</strong><span>Всего смертей</span><strong>${fmt(value.total)}</strong><span>Выбранная причина</span><strong>${fmt(value.selected)}</strong><span>Структура</span><strong>${esc(topClasses(value))}</strong></div>`);
         });
         let labelled = [];
         if (state.dotLabels === "top") labelled = [...points].sort((left, right) => right.value - left.value).slice(0, 10);
@@ -353,7 +355,7 @@
         document.getElementById("viz").insertAdjacentHTML("beforeend", `<div class="chart-note">Каждая строка — муниципальная территория, каждая точка — НП. ${state.dotLabels === "outliers" ? "Подписаны выбросы по правилу Q3 + 1,5×IQR и несколько крупнейших значений." : state.dotLabels === "top" ? "Подписаны десять крупнейших значений." : "Подписи точек отключены."} Вертикальный пунктир — медиана.</div>`);
       }
       delete window.__dotValuesForAxis;
-      document.getElementById("methodText").textContent = `Dotogram теперь показывает территориальный контекст: НП сгруппированы по муниципалитетам, а муниципалитеты отображаются ранжированным точечным графиком. Подписи выделяют только статистически необычные или крупнейшие значения.${state.dotMetric === "n" || state.dotMetric === "pgpzh" ? " Для абсолютных значений применяется корневая шкала, чтобы крупнейший центр не сжимал остальные территории у нуля." : ""}`;
+      document.getElementById("methodText").textContent = `Dotogram показывает территориальный контекст: НП сгруппированы по муниципалитетам, а муниципалитеты отображаются ранжированным точечным графиком. Подписи выделяют только статистически необычные или крупнейшие значения.${rateBase(state.dotMetric) ? ` Показатель рассчитан как смерти в текущем фильтре / население ${DATA.populationYear} × ${state.dotMetric === "per10k" ? "10 000" : "100 000"}; для многолетнего фильтра он накопительный.` : state.dotMetric === "n" || state.dotMetric === "pgpzh" ? " Для абсолютных значений применяется корневая шкала, чтобы крупнейший центр не сжимал остальные территории у нуля." : ""}`;
     };
 
     const appendMapCenterLabels = (mapSvg) => {
@@ -532,10 +534,9 @@
       }
       if (suppressSmallValues) {
         document.querySelector(".map-legend")?.insertAdjacentHTML("beforeend", '<div class="site-map-legend-note">Малые значения n &lt; 5 скрыты</div>');
-        const metric = (value) => state.mapMetric === "share"
-          ? (state.mapClass === "all" ? value.total / Math.max(filtered().length, 1) * 100 : value.selected / value.total * 100)
-          : value.selected;
-        const ranked = [...map.values()].sort((a, b) => metric(b) - metric(a)).slice(0, 15);
+        const definitions = state.mapUnit === "mo" ? DATA.municipalities : DATA.settlements;
+        const metric = (value) => territoryMetric(state.mapMetric, value, definitions[value.idx], state.mapClass, filtered().length);
+        const ranked = [...map.values()].filter((value) => Number.isFinite(metric(value))).sort((a, b) => metric(b) - metric(a)).slice(0, 15);
         document.querySelectorAll(".rank-item").forEach((item, index) => item.classList.toggle("site-map-suppressed", ranked[index]?.selected < 5));
       }
       appendMapCenterLabels(svg);
