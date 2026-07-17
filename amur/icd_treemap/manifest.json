@@ -1,6 +1,6 @@
 {
   "report": "index.html",
-  "html_bytes": 1017984,
+  "html_bytes": 1184144,
   "records": 32942,
   "visualizations": [
     "treemap",
@@ -16,9 +16,10 @@
   "quality": {
     "source": "Амурская обл_30.04 (6).xlsx",
     "layer_source": "НП_ из_слоя.xlsx",
+    "municipality_geometry_source": "Амурская область_МО.gpkg",
     "coordinate_reference": "settlements.csv",
     "map_crs": "EPSG:3857",
-    "municipality_geometry": "schematic_convex_hulls_of_settlement_points",
+    "municipality_geometry": "official_municipal_boundaries_simplified_500m",
     "period": "2023–2025",
     "source_rows": 32971,
     "period_rows": 32942,
@@ -33,11 +34,33 @@
     "municipalities": 29,
     "settlements_in_layer": 632,
     "settlements_with_data": 506,
+    "settlements_inside_assigned_municipality": 629,
+    "settlement_polygon_match_share": 0.995253164556962,
+    "settlement_polygon_mismatches": [
+      {
+        "settlement_id": 25404,
+        "settlement": "Кивда",
+        "assigned_municipality": "Райчихинск",
+        "containing_municipality": "Рабочий посёлок Прогресс"
+      },
+      {
+        "settlement_id": 67316,
+        "settlement": "Верхнеблаговещенское",
+        "assigned_municipality": "Благовещенск",
+        "containing_municipality": "Благовещенский"
+      },
+      {
+        "settlement_id": 93405,
+        "settlement": "Нижняя Завитинка",
+        "assigned_municipality": "Михайловский",
+        "containing_municipality": "Октябрьский"
+      }
+    ],
     "unknown_layer_ids": 0,
     "classes": 22,
     "blocks": 134,
     "codes": 578,
-    "generated_at": "2026-07-17T14:58:53",
+    "generated_at": "2026-07-17T15:40:06",
     "privacy": "Only anonymized analytical dimensions are embedded; death record IDs, addresses and names are excluded."
   }
 }
