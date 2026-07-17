@@ -84,6 +84,9 @@
     const exportPrefix = DATA.regionKey || (page.match.includes("/amur/") ? "amur" : "sakhalin");
     if (state.treeColor === undefined || state.treeColor === "change") state.treeColor = "count";
     if (state.mapLabels === undefined) state.mapLabels = "key";
+    if (state.mapPalette === undefined) state.mapPalette = "teal";
+    if (state.mapColorLow === undefined) state.mapColorLow = "#e5f2f4";
+    if (state.mapColorHigh === undefined) state.mapColorHigh = "#115b70";
     if (state.dotLabels === undefined) state.dotLabels = "outliers";
 
     const defaults = { ...state };
@@ -103,6 +106,7 @@
       mapUnit: ["settlement", "mo"],
       mapMetric: ["n", "share", "per10k", "per100k"],
       mapLabels: ["key", "off"],
+      mapPalette: ["teal", "blue", "purple", "orange", "green", "rose", "custom"],
       dotUnit: ["settlement", "mo"],
       dotMetric: ["n", "share", "median", "pgpzh", "per10k", "per100k"],
       dotLabels: ["outliers", "top", "off"]
@@ -120,6 +124,7 @@
       if (classKeys.has(key)) return value === "all" || (Number.isInteger(+value) && +value >= 0 && +value < DATA.classes.length);
       if (key === "treeIndex") return Number.isInteger(+value) && +value >= -1 && +value < Math.max(DATA.classes.length, DATA.blocks.length);
       if (key === "mapScaleMax") return value === "" || (Number.isFinite(+value) && +value >= 0 && +value <= 1e9);
+      if (key === "mapColorLow" || key === "mapColorHigh") return /^#[0-9a-f]{6}$/i.test(value);
       return false;
     };
 
@@ -151,6 +156,50 @@
       document.querySelectorAll(".viz-btn").forEach((button) => button.classList.toggle("active", button.dataset.view === state.view));
     };
 
+    const paletteDefinitions = {
+      teal: { label: "Сине-бирюзовая", colors: ["#e5f2f4", "#79b4bf", "#115b70"] },
+      blue: { label: "Синяя", colors: ["#eff6ff", "#78aee8", "#174a8b"] },
+      purple: { label: "Фиолетовая", colors: ["#f5f1fb", "#b69bd6", "#5b2a86"] },
+      orange: { label: "Оранжевая", colors: ["#fff4e6", "#f2a65a", "#a94712"] },
+      green: { label: "Зелёная", colors: ["#edf8ef", "#7fc392", "#176b3a"] },
+      rose: { label: "Розово-бордовая", colors: ["#fff0f3", "#df8ca1", "#8f2444"] },
+      custom: { label: "Своя палитра", colors: [] }
+    };
+
+    const paletteColors = () => state.mapPalette === "custom"
+      ? [state.mapColorLow, state.mapColorHigh]
+      : paletteDefinitions[state.mapPalette]?.colors || paletteDefinitions.teal.colors;
+
+    const rgbFromHex = (hex) => {
+      const value = String(hex).replace("#", "");
+      return [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16));
+    };
+
+    const continuousPaletteColor = (value) => {
+      const colors = paletteColors();
+      const bounded = Math.max(0, Math.min(1, Number(value) || 0));
+      const position = bounded * (colors.length - 1);
+      const index = Math.min(Math.floor(position), colors.length - 2);
+      const fraction = position - index;
+      const start = rgbFromHex(colors[index]);
+      const end = rgbFromHex(colors[index + 1]);
+      const mixed = start.map((channel, channelIndex) => Math.round(channel + (end[channelIndex] - channel) * fraction));
+      return `rgb(${mixed.join(",")})`;
+    };
+
+    const paletteClassColors = () => Array.from(
+      { length: 5 },
+      (_, index) => continuousPaletteColor(index / 4)
+    );
+
+    const paletteColor = (value) => {
+      const bounded = Math.max(0, Math.min(1, Number(value) || 0));
+      const classIndex = Math.min(4, Math.floor(bounded * 5));
+      return paletteClassColors()[classIndex];
+    };
+
+    window.mapRamp = paletteColor;
+
     const addSupplementalControls = () => {
       const controls = document.getElementById("localControls");
       if (!controls) return;
@@ -162,6 +211,29 @@
         if (color) color.value = state.treeColor;
       }
       if (state.view === "map") {
+        const paletteOptions = Object.entries(paletteDefinitions)
+          .map(([value, definition]) => `<option value="${value}">${definition.label}</option>`)
+          .join("");
+        const customColors = state.mapPalette === "custom" ? `
+          <div class="site-map-palette-colors">
+            <label><span>Минимум <output>${state.mapColorLow.toUpperCase()}</output></span><input id="mapColorLow" type="color" value="${state.mapColorLow}"></label>
+            <label><span>Максимум <output>${state.mapColorHigh.toUpperCase()}</output></span><input id="mapColorHigh" type="color" value="${state.mapColorHigh}"></label>
+          </div>` : "";
+        const paletteHint = state.mapUnit === "settlement" && state.mapClass === "all" && state.mapMetric === "n"
+          ? "Сейчас цвет точки показывает ведущий класс МКБ. Палитра включится для выбранного класса, доли или показателя на население."
+          : "Палитра применяется к точкам, полигонам и легенде как 5 равных интервальных классов.";
+        controls.insertAdjacentHTML("beforeend", `
+          <div class="field"><label for="mapPalette">Палитра числовой шкалы</label>
+          <select id="mapPalette">${paletteOptions}</select>
+          <div class="site-map-palette-preview" aria-label="Пять цветовых классов">${paletteClassColors().map((color) => `<span style="background:${color}"></span>`).join("")}</div>
+          ${customColors}<p class="site-map-palette-hint">${paletteHint}</p></div>`);
+        const palette = document.getElementById("mapPalette");
+        palette.value = state.mapPalette;
+        palette.onchange = () => { state.mapPalette = palette.value; render(); };
+        ["mapColorLow", "mapColorHigh"].forEach((key) => {
+          const input = document.getElementById(key);
+          if (input) input.onchange = () => { state[key] = input.value.toLowerCase(); render(); };
+        });
         controls.insertAdjacentHTML("beforeend", `
           <div class="field"><label for="mapLabels">Подписи на карте</label>
           <select id="mapLabels"><option value="key">Ключевые центры</option><option value="off">Без подписей</option></select></div>`);
@@ -206,6 +278,39 @@
       if (state.treeColor === "count") {
         document.getElementById("methodText").textContent = "Площадь показывает выбранный показатель, а насыщенность пастельного цвета — число смертей внутри текущего уровня. Чем темнее плитка, тем больше наблюдений.";
       }
+    };
+
+    const enhanceMapPaletteLegend = () => {
+      if (state.view !== "map") return;
+      const ramp = document.querySelector(".legend-ramp");
+      if (!ramp) return;
+      const colors = paletteClassColors();
+      const paletteName = paletteDefinitions[state.mapPalette]?.label || paletteDefinitions.teal.label;
+      const { defs, map } = geoValues(state.mapUnit, state.mapClass);
+      const metric = (value) => territoryMetric(state.mapMetric, value, defs[value.idx], state.mapClass, filtered().length);
+      const metricValues = [...map.values()].map(metric).filter(Number.isFinite);
+      const manualMaximum = Number(state.mapScaleMax);
+      const scaleMaximum = manualMaximum > 0 ? manualMaximum : Math.max(1, ...metricValues);
+      ramp.style.background = "none";
+      ramp.classList.add("site-map-discrete-ramp");
+      ramp.innerHTML = colors.map((color) => `<span style="background:${color}"></span>`).join("");
+      ramp.setAttribute("role", "img");
+      ramp.setAttribute("aria-label", `Палитра ${paletteName}, пять интервальных классов`);
+      const caption = document.createElement("div");
+      caption.className = "site-map-palette-caption";
+      caption.textContent = state.mapPalette === "custom"
+        ? `5 классов · ${state.mapColorLow.toUpperCase()} → ${state.mapColorHigh.toUpperCase()}`
+        : `5 классов · ${paletteName}`;
+      const range = ramp.nextElementSibling;
+      range?.insertAdjacentElement("afterend", caption);
+      const breaks = document.createElement("div");
+      breaks.className = "site-map-class-breaks";
+      breaks.innerHTML = colors.map((color, index) => {
+        const lower = scaleMaximum * index / 5;
+        const upper = scaleMaximum * (index + 1) / 5;
+        return `<span><i style="background:${color}"></i>${formatTerritoryMetric(state.mapMetric, lower)}–${formatTerritoryMetric(state.mapMetric, upper)}</span>`;
+      }).join("");
+      caption.insertAdjacentElement("afterend", breaks);
     };
 
     const dotMetricValue = (value, definition) => rateBase(state.dotMetric)
@@ -676,6 +781,7 @@
       addSupplementalControls();
       enhanceTreemap();
       enhanceDotogram();
+      enhanceMapPaletteLegend();
       const svgButton = actionBox.querySelector('[data-atlas-action="svg"]');
       svgButton.disabled = !document.querySelector("#viz svg");
       svgButton.title = svgButton.disabled ? "Для этой визуализации SVG недоступен" : "Скачать текущий график в SVG";
