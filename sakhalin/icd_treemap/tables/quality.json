@@ -1,6 +1,7 @@
 {
   "source": "C:\\Users\\User\\Documents\\Смертность\\input\\BETA_Смертность Сахалинской области_.xlsx",
   "coordinate_reference": "C:\\Users\\User\\Documents\\Codex\\2026-06-15\\new-chat\\outputs\\Лецензии\\Коодинаты нп из гитхаба\\settlements.csv",
+  "map_crs": "EPSG:3857",
   "period": "2016–2025",
   "records": 64677,
   "mapped_icd": 64677,
@@ -16,5 +17,5 @@
   "blocks": 151,
   "codes": 604,
   "unmatched_block_rows": 0,
-  "generated_at": "2026-07-17T11:39:28"
+  "generated_at": "2026-07-17T11:52:05"
 }
