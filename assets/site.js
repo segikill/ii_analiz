@@ -87,6 +87,7 @@
     if (state.mapPalette === undefined) state.mapPalette = "teal";
     if (state.mapColorLow === undefined) state.mapColorLow = "#e5f2f4";
     if (state.mapColorHigh === undefined) state.mapColorHigh = "#115b70";
+    if (state.mapBreaks === undefined) state.mapBreaks = "";
     if (state.dotLabels === undefined) state.dotLabels = "outliers";
 
     const defaults = { ...state };
@@ -124,6 +125,13 @@
       if (classKeys.has(key)) return value === "all" || (Number.isInteger(+value) && +value >= 0 && +value < DATA.classes.length);
       if (key === "treeIndex") return Number.isInteger(+value) && +value >= -1 && +value < Math.max(DATA.classes.length, DATA.blocks.length);
       if (key === "mapScaleMax") return value === "" || (Number.isFinite(+value) && +value >= 0 && +value <= 1e9);
+      if (key === "mapBreaks") {
+        if (value === "") return true;
+        const breaks = value.split(",").map(Number);
+        return breaks.length === 4
+          && breaks.every((item) => Number.isFinite(item) && item > 0 && item <= 1e9)
+          && breaks.every((item, index) => index === 0 || item > breaks[index - 1]);
+      }
       if (key === "mapColorLow" || key === "mapColorHigh") return /^#[0-9a-f]{6}$/i.test(value);
       return false;
     };
@@ -192,9 +200,57 @@
       (_, index) => continuousPaletteColor(index / 4)
     );
 
+    let activeMapBreakFractions = [0, .2, .4, .6, .8, 1];
+
+    const mapBreakInputValue = (value) => {
+      const rounded = Math.round(Number(value) * 100) / 100;
+      return Number.isFinite(rounded) ? String(rounded) : "";
+    };
+
+    const automaticMapBreaks = (scaleMaximum) => {
+      const raw = Array.from({ length: 4 }, (_, index) => scaleMaximum * (index + 1) / 5);
+      const precision = state.mapMetric === "n" && scaleMaximum >= 5 ? 0 : scaleMaximum >= 100 ? 1 : 2;
+      const rounded = raw.map((value) => Number(value.toFixed(precision)));
+      return rounded.every((value, index) => value > (index === 0 ? 0 : rounded[index - 1]) && value < scaleMaximum)
+        ? rounded
+        : raw;
+    };
+
+    const mapScaleContext = () => {
+      const { defs, map } = geoValues(state.mapUnit, state.mapClass);
+      const totalRows = filtered().length;
+      const metric = (value) => territoryMetric(state.mapMetric, value, defs[value.idx], state.mapClass, totalRows);
+      const metricValues = [...map.values()].map(metric).filter(Number.isFinite);
+      const manualMaximum = Number(state.mapScaleMax);
+      const scaleMaximum = manualMaximum > 0 ? manualMaximum : Math.max(1, ...metricValues);
+      const automatic = automaticMapBreaks(scaleMaximum);
+      const requested = String(state.mapBreaks || "").split(",").map(Number);
+      const manual = requested.length === 4
+        && requested.every((value, index) => Number.isFinite(value)
+          && value > (index === 0 ? 0 : requested[index - 1])
+          && value < scaleMaximum);
+      if (state.mapBreaks && !manual) state.mapBreaks = "";
+      const innerBreaks = manual ? requested : automatic;
+      const boundaries = [0, ...innerBreaks, scaleMaximum];
+      return { boundaries, innerBreaks, manual, metricValues, scaleMaximum };
+    };
+
+    const mapClassIndex = (value, boundaries) => {
+      for (let index = 1; index < boundaries.length - 1; index += 1) {
+        if (value <= boundaries[index]) return index - 1;
+      }
+      return 4;
+    };
+
+    const syncActiveMapBreaks = () => {
+      const context = mapScaleContext();
+      activeMapBreakFractions = context.boundaries.map((value) => value / context.scaleMaximum);
+      return context;
+    };
+
     const paletteColor = (value) => {
       const bounded = Math.max(0, Math.min(1, Number(value) || 0));
-      const classIndex = Math.min(4, Math.floor(bounded * 5));
+      const classIndex = mapClassIndex(bounded, activeMapBreakFractions);
       return paletteClassColors()[classIndex];
     };
 
@@ -286,11 +342,9 @@
       if (!ramp) return;
       const colors = paletteClassColors();
       const paletteName = paletteDefinitions[state.mapPalette]?.label || paletteDefinitions.teal.label;
-      const { defs, map } = geoValues(state.mapUnit, state.mapClass);
-      const metric = (value) => territoryMetric(state.mapMetric, value, defs[value.idx], state.mapClass, filtered().length);
-      const metricValues = [...map.values()].map(metric).filter(Number.isFinite);
-      const manualMaximum = Number(state.mapScaleMax);
-      const scaleMaximum = manualMaximum > 0 ? manualMaximum : Math.max(1, ...metricValues);
+      const { boundaries, innerBreaks, manual, metricValues, scaleMaximum } = syncActiveMapBreaks();
+      const counts = new Array(5).fill(0);
+      metricValues.forEach((value) => { counts[mapClassIndex(value, boundaries)] += 1; });
       ramp.style.background = "none";
       ramp.classList.add("site-map-discrete-ramp");
       ramp.innerHTML = colors.map((color) => `<span style="background:${color}"></span>`).join("");
@@ -306,11 +360,43 @@
       const breaks = document.createElement("div");
       breaks.className = "site-map-class-breaks";
       breaks.innerHTML = colors.map((color, index) => {
-        const lower = scaleMaximum * index / 5;
-        const upper = scaleMaximum * (index + 1) / 5;
-        return `<span><i style="background:${color}"></i>${formatTerritoryMetric(state.mapMetric, lower)}–${formatTerritoryMetric(state.mapMetric, upper)}</span>`;
+        const rawLower = boundaries[index];
+        const lower = state.mapMetric === "n" && index > 0 ? Math.floor(rawLower) + 1 : rawLower;
+        const upper = boundaries[index + 1];
+        const input = index < 4
+          ? `<input class="site-map-break-input" type="number" min="0" max="${scaleMaximum}" step="any" value="${mapBreakInputValue(innerBreaks[index])}" data-map-break="${index}" aria-label="Верхняя граница класса ${index + 1}">`
+          : '<span class="site-map-break-auto">авто</span>';
+        return `<div class="site-map-class-row"><i style="background:${color}"></i><span class="site-map-class-label"><span>${formatTerritoryMetric(state.mapMetric, lower)}–${formatTerritoryMetric(state.mapMetric, upper)}</span><small>(${counts[index]} шт.)</small></span>${input}</div>`;
       }).join("");
+      breaks.insertAdjacentHTML("beforeend", `<div class="site-map-break-actions"><span>${manual ? "границы настроены вручную" : "все диапазоны рассчитаны автоматически"}</span><button type="button" id="mapBreaksReset"${manual ? "" : " disabled"}>Сбросить в авто</button></div>`);
       caption.insertAdjacentElement("afterend", breaks);
+      const inputs = [...breaks.querySelectorAll(".site-map-break-input")];
+      const applyBreaks = () => {
+        const values = inputs.map((input) => Number(input.value));
+        const valid = values.every((value, index) => Number.isFinite(value)
+          && value > (index === 0 ? 0 : values[index - 1])
+          && value < scaleMaximum);
+        inputs.forEach((input) => {
+          input.classList.toggle("invalid", !valid);
+          input.setCustomValidity(valid ? "" : "Границы должны возрастать и находиться между 0 и максимумом шкалы");
+        });
+        if (!valid) {
+          inputs.find((input) => !input.checkValidity())?.reportValidity();
+          return;
+        }
+        state.mapBreaks = values.join(",");
+        render();
+      };
+      inputs.forEach((input) => {
+        input.addEventListener("change", applyBreaks);
+        input.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") applyBreaks();
+        });
+      });
+      breaks.querySelector("#mapBreaksReset")?.addEventListener("click", () => {
+        state.mapBreaks = "";
+        render();
+      });
     };
 
     const dotMetricValue = (value, definition) => rateBase(state.dotMetric)
@@ -775,6 +861,7 @@
 
     const baseRender = render;
     render = () => {
+      if (state.view === "map") syncActiveMapBreaks();
       baseRender();
       syncGlobalControls();
       writeUrlState();

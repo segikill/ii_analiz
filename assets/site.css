@@ -495,9 +495,9 @@ svg .site-atlas-highlight {
   border-top: 1px solid #e2e8f0;
 }
 
-.site-map-class-breaks span {
+.site-map-class-row {
   display: grid;
-  grid-template-columns: 10px 1fr;
+  grid-template-columns: 10px minmax(0, 1fr) 66px;
   gap: 5px;
   align-items: center;
   color: #536078;
@@ -505,11 +505,96 @@ svg .site-atlas-highlight {
   font-variant-numeric: tabular-nums;
 }
 
-.site-map-class-breaks i {
+.site-map-class-row > i {
   width: 10px;
   height: 8px;
   border: 1px solid rgba(23, 32, 51, .10);
   border-radius: 2px;
+}
+
+.site-map-class-label {
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 1px 4px;
+  align-items: baseline;
+}
+
+.site-map-class-label > span {
+  color: #344054;
+  white-space: nowrap;
+}
+
+.site-map-class-label small {
+  color: #98a2b3;
+  font-size: 8px;
+  white-space: nowrap;
+}
+
+.site-map-break-input {
+  width: 66px !important;
+  min-width: 0;
+  padding: 3px 4px !important;
+  border: 1px solid #cbd7e6 !important;
+  border-radius: 5px !important;
+  background: #fff !important;
+  color: #344054 !important;
+  font-size: 8.5px !important;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.site-map-break-input:focus {
+  border-color: #356ae6 !important;
+  box-shadow: 0 0 0 2px rgba(53, 106, 230, .12);
+  outline: none;
+}
+
+.site-map-break-input.invalid {
+  border-color: #d92d20 !important;
+  background: #fff6f5 !important;
+}
+
+.site-map-break-auto {
+  padding-right: 4px;
+  color: #98a2b3;
+  font-size: 8px;
+  font-style: italic;
+  text-align: right;
+}
+
+.site-map-break-actions {
+  display: flex;
+  grid-column: 1 / -1;
+  gap: 6px;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 3px;
+  padding-top: 5px;
+  border-top: 1px dashed #dfe7ef;
+}
+
+.site-map-break-actions span {
+  color: #98a2b3;
+  font-size: 7.8px;
+  line-height: 1.2;
+}
+
+.site-map-break-actions button {
+  padding: 3px 5px;
+  border: 1px solid #cbd7e6;
+  border-radius: 5px;
+  background: #f7f9fc;
+  color: #3159b4;
+  cursor: pointer;
+  font-size: 7.8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.site-map-break-actions button:disabled {
+  cursor: default;
+  opacity: .45;
 }
 
 .site-map-privacy {
