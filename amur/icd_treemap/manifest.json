@@ -1,6 +1,6 @@
 {
   "report": "index.html",
-  "html_bytes": 1239560,
+  "html_bytes": 1241219,
   "records": 32942,
   "visualizations": [
     "treemap",
@@ -77,7 +77,7 @@
     "population_settlement_death_records_eligible": 29805,
     "population_settlement_death_records_without_positive_denominator": 25,
     "population_rate_formula": "filtered deaths / population_2021 * 10,000 or 100,000; cumulative for multi-year filters",
-    "generated_at": "2026-07-17T16:48:40",
+    "generated_at": "2026-07-17T17:13:01",
     "privacy": "Only anonymized analytical dimensions are embedded; death record IDs, addresses and names are excluded."
   }
 }
