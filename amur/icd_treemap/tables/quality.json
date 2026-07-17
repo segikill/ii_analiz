@@ -17,6 +17,12 @@
   "settlement_coordinate_mapped": 29830,
   "settlement_coordinate_share": 0.9055309331552426,
   "municipalities": 29,
+  "municipality_display_types": {
+    "city": 8,
+    "district": 20,
+    "urban_settlement": 1
+  },
+  "municipality_label_convention": "city (г.), district (р-н), urban-type settlement (пгт)",
   "settlements_in_layer": 632,
   "settlements_with_data": 506,
   "settlements_inside_assigned_municipality": 629,
@@ -56,6 +62,6 @@
   "population_settlement_death_records_eligible": 29805,
   "population_settlement_death_records_without_positive_denominator": 25,
   "population_rate_formula": "filtered deaths / population_2021 * 10,000 or 100,000; cumulative for multi-year filters",
-  "generated_at": "2026-07-17T16:12:22",
+  "generated_at": "2026-07-17T16:48:40",
   "privacy": "Only anonymized analytical dimensions are embedded; death record IDs, addresses and names are excluded."
 }
