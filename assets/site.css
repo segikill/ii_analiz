@@ -262,16 +262,20 @@ svg .site-atlas-highlight {
 .map-center-marker {
   fill: #183f6f;
   stroke: #fff;
-  stroke-width: 1.4px;
+  pointer-events: none;
+}
+
+.map-center-leader {
+  fill: none;
+  stroke: rgba(22, 53, 82, .62);
+  stroke-width: 1px;
   pointer-events: none;
 }
 
 .map-center-label {
   fill: #163552;
   stroke: #fff;
-  stroke-width: 3.6px;
   paint-order: stroke;
-  font-size: 10px;
   font-weight: 850;
   letter-spacing: .01em;
   pointer-events: none;
@@ -390,6 +394,67 @@ svg .site-atlas-highlight {
   cursor: grabbing;
 }
 
+.site-map-stage {
+  min-width: 680px;
+  background: #f8fbfd;
+}
+
+.site-map-svg {
+  display: block;
+  width: 100%;
+  min-width: 680px;
+  height: auto;
+}
+
+.site-optimized-map .map-side {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.site-map-marker {
+  cursor: pointer;
+}
+
+.site-map-hit {
+  pointer-events: all;
+}
+
+.site-map-label-layer {
+  opacity: 1;
+  transition: opacity .08s ease;
+  pointer-events: none;
+}
+
+.site-map-label-layer.is-moving {
+  opacity: 0;
+}
+
+.map-center-label {
+  fill: #172033;
+  stroke: rgba(255, 255, 255, .96);
+  stroke-linejoin: round;
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+  font-weight: 500;
+  pointer-events: none;
+}
+
+.map-center-label.city {
+  fill: #102d4c;
+  font-weight: 850;
+  letter-spacing: .005em;
+}
+
+.map-center-label.settlement {
+  fill: #45536a;
+  font-weight: 500;
+}
+
+.map-center-label.selected {
+  fill: #7a4a00;
+  font-weight: 900;
+}
+
 .site-map-controls {
   position: absolute;
   z-index: 12;
@@ -414,6 +479,108 @@ svg .site-atlas-highlight {
   cursor: pointer;
   font-size: 12px;
   font-weight: 900;
+}
+
+.site-map-controls output {
+  display: grid;
+  min-width: 42px;
+  place-items: center;
+  padding: 0 5px;
+  color: #536078;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.site-population-size-legend {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #dfe7ef;
+}
+
+.site-population-size-legend > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 8px;
+}
+
+.site-population-size-item {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 4px;
+  align-items: center;
+  min-height: 30px;
+  color: #536078;
+  font-size: 8px;
+}
+
+.site-population-size-item small {
+  color: #98a2b3;
+  font-size: 7.5px;
+}
+
+.site-population-symbol {
+  display: inline-block;
+  width: var(--symbol-size);
+  height: var(--symbol-size);
+  justify-self: center;
+  border: 1px solid #25344a;
+  border-radius: 50%;
+  background: #79b4bf;
+}
+
+.site-population-symbol.donut {
+  border: var(--ring-size) solid #79b4bf;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px #25344a, 0 0 0 1px #25344a;
+}
+
+.site-population-size-legend p {
+  margin: 5px 0 0;
+  color: #7b8494;
+  font-size: 8px;
+  line-height: 1.3;
+}
+
+.site-settlement-label-legend {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid #dfe7ef;
+}
+
+.site-settlement-label-legend > div {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  margin-top: 5px;
+}
+
+.site-settlement-label-legend span {
+  color: #45536a;
+  font-size: 9px;
+  font-weight: 500;
+}
+
+.site-settlement-label-legend span.city {
+  color: #102d4c;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.site-settlement-label-legend p {
+  margin: 5px 0 0;
+  color: #7b8494;
+  font-size: 8px;
+  line-height: 1.3;
+}
+
+.site-map-debug {
+  margin-top: 10px;
+  padding: 7px 8px;
+  border: 1px dashed #9fb2ca;
+  border-radius: 7px;
+  background: #f4f8fc;
+  color: #526078;
+  font: 9px/1.35 ui-monospace, Consolas, monospace;
 }
 
 .site-map-palette-preview {

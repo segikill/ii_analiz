@@ -104,7 +104,7 @@
 
     const exportPrefix = DATA.regionKey || (page.match.includes("/amur/") ? "amur" : "sakhalin");
     if (state.treeColor === undefined || state.treeColor === "change") state.treeColor = "count";
-    if (state.mapLabels === undefined) state.mapLabels = "key";
+    if (state.mapLabels === undefined || state.mapLabels === "key") state.mapLabels = "auto";
     if (state.mapPalette === undefined) state.mapPalette = "teal";
     if (state.mapColorLow === undefined) state.mapColorLow = "#e5f2f4";
     if (state.mapColorHigh === undefined) state.mapColorHigh = "#115b70";
@@ -127,7 +127,7 @@
       plotLevel: ["class", "code"],
       mapUnit: ["settlement", "mo"],
       mapMetric: ["n", "share", "per1k", "per10k", "per100k"],
-      mapLabels: ["key", "off"],
+      mapLabels: ["auto", "centers", "off"],
       mapPalette: ["teal", "blue", "purple", "orange", "green", "rose", "custom"],
       dotUnit: ["settlement", "mo"],
       dotMetric: ["n", "share", "median", "pgpzh", "per1k", "per10k", "per100k"],
@@ -139,6 +139,72 @@
     let searchTarget = null;
     let suppressSmallValues = false;
     let mapViewport = [0, 0, 760, 790];
+    const debugMap = new URLSearchParams(window.location.search).get("debug") === "1";
+    const filteredCache = new Map();
+    const geoAggregateCache = new Map();
+    const mapScaleCache = new Map();
+    const mapPerformance = { filterMiss: false, aggregateMiss: false, filterMs: 0, aggregateMs: 0 };
+    const originalFiltered = filtered;
+    const cachePut = (cache, key, value, maximum = 16) => {
+      if (cache.has(key)) cache.delete(key);
+      cache.set(key, value);
+      while (cache.size > maximum) cache.delete(cache.keys().next().value);
+      return value;
+    };
+    const filterStateKey = () => `${state.year}|${state.sex}|${state.age}`;
+    filtered = (options = {}) => {
+      if (Object.keys(options).length) return originalFiltered(options);
+      const key = filterStateKey();
+      if (filteredCache.has(key)) return filteredCache.get(key);
+      const started = performance.now();
+      const result = originalFiltered();
+      mapPerformance.filterMiss = true;
+      mapPerformance.filterMs = performance.now() - started;
+      return cachePut(filteredCache, key, result, 12);
+    };
+    geoValues = (unit, classKey) => {
+      const key = `${filterStateKey()}|${unit}`;
+      let aggregate = geoAggregateCache.get(key);
+      if (!aggregate) {
+        const started = performance.now();
+        const definitions = unit === "mo" ? DATA.municipalities : DATA.settlements;
+        const position = unit === "mo" ? 4 : 5;
+        const table = new Map();
+        filtered().forEach((row) => {
+          const index = row[position];
+          if (index < 0) return;
+          if (!table.has(index)) {
+            table.set(index, {
+              idx: index,
+              total: 0,
+              selected: 0,
+              ages: [],
+              pgpzh: 0,
+              classes: new Array(DATA.classes.length).fill(0)
+            });
+          }
+          const value = table.get(index);
+          const classIndex = classOf(row);
+          value.total += 1;
+          if (row[2] >= 0) {
+            value.ages.push(row[2]);
+            value.pgpzh += Math.max(75 - row[2], 0);
+          }
+          if (classIndex >= 0) value.classes[classIndex] += 1;
+        });
+        aggregate = cachePut(geoAggregateCache, key, { defs: definitions, table }, 24);
+        mapPerformance.aggregateMiss = true;
+        mapPerformance.aggregateMs = performance.now() - started;
+      }
+      const map = new Map();
+      aggregate.table.forEach((value, index) => {
+        map.set(index, {
+          ...value,
+          selected: classKey === "all" ? value.total : value.classes[+classKey] || 0
+        });
+      });
+      return { defs: aggregate.defs, map };
+    };
 
     const isValid = (key, value) => {
       if (enumValues[key]) return enumValues[key].includes(value);
@@ -228,7 +294,7 @@
       return Number.isFinite(rounded) ? String(rounded) : "";
     };
 
-    const automaticMapBreaks = (scaleMaximum) => {
+    const equalIntervalBreaks = (scaleMaximum) => {
       const raw = Array.from({ length: 4 }, (_, index) => scaleMaximum * (index + 1) / 5);
       const precision = state.mapMetric === "n" && scaleMaximum >= 5 ? 0 : scaleMaximum >= 100 ? 1 : 2;
       const rounded = raw.map((value) => Number(value.toFixed(precision)));
@@ -237,14 +303,77 @@
         : raw;
     };
 
+    const jenksBreaks = (source, classCount) => {
+      const data = source.filter(Number.isFinite).sort((left, right) => left - right);
+      const length = data.length;
+      if (!length || classCount < 2) return [data[0] || 0, data[length - 1] || 0];
+      const lower = Array.from({ length: length + 1 }, () => new Float64Array(classCount + 1));
+      const variance = Array.from({ length: length + 1 }, () => new Float64Array(classCount + 1).fill(Infinity));
+      for (let index = 1; index <= classCount; index += 1) {
+        lower[1][index] = 1;
+        variance[1][index] = 0;
+      }
+      for (let end = 2; end <= length; end += 1) {
+        let sum = 0, sumSquares = 0, weight = 0, currentVariance = 0;
+        for (let offset = 1; offset <= end; offset += 1) {
+          const start = end - offset + 1;
+          const value = data[start - 1];
+          weight += 1;
+          sum += value;
+          sumSquares += value * value;
+          currentVariance = sumSquares - sum * sum / weight;
+          const previous = start - 1;
+          if (previous > 0) {
+            for (let group = 2; group <= classCount; group += 1) {
+              const candidate = currentVariance + variance[previous][group - 1];
+              if (candidate < variance[end][group]) {
+                lower[end][group] = start;
+                variance[end][group] = candidate;
+              }
+            }
+          }
+        }
+        lower[end][1] = 1;
+        variance[end][1] = currentVariance;
+      }
+      const result = new Array(classCount + 1).fill(0);
+      result[0] = data[0];
+      result[classCount] = data[length - 1];
+      let end = length;
+      for (let group = classCount; group > 1; group -= 1) {
+        const index = Math.max(0, Math.round(lower[end][group]) - 2);
+        result[group - 1] = data[index];
+        end = Math.max(1, Math.round(lower[end][group]) - 1);
+      }
+      return result;
+    };
+
+    const automaticMapBreaks = (metricValues, scaleMaximum) => {
+      const positive = metricValues
+        .filter((value) => Number.isFinite(value) && value > 0 && value <= scaleMaximum);
+      const unique = [...new Set(positive)];
+      if (unique.length < 5) return equalIntervalBreaks(scaleMaximum);
+      const raw = jenksBreaks([...positive, scaleMaximum], 5).slice(1, -1);
+      const valid = raw.length === 4
+        && raw.every((value, index) => Number.isFinite(value)
+          && value > (index === 0 ? 0 : raw[index - 1])
+          && value < scaleMaximum);
+      return valid ? raw : equalIntervalBreaks(scaleMaximum);
+    };
+
     const mapScaleContext = () => {
+      const cacheKey = [
+        filterStateKey(), state.mapUnit, state.mapClass, state.mapMetric,
+        state.mapScaleMax, state.mapBreaks
+      ].join("|");
+      if (mapScaleCache.has(cacheKey)) return mapScaleCache.get(cacheKey);
       const { defs, map } = geoValues(state.mapUnit, state.mapClass);
       const totalRows = filtered().length;
       const metric = (value) => territoryMetric(state.mapMetric, value, defs[value.idx], state.mapClass, totalRows);
       const metricValues = [...map.values()].map(metric).filter(Number.isFinite);
       const manualMaximum = Number(state.mapScaleMax);
       const scaleMaximum = manualMaximum > 0 ? manualMaximum : Math.max(1, ...metricValues);
-      const automatic = automaticMapBreaks(scaleMaximum);
+      const automatic = automaticMapBreaks(metricValues, scaleMaximum);
       const requested = String(state.mapBreaks || "").split(",").map(Number);
       const manual = requested.length === 4
         && requested.every((value, index) => Number.isFinite(value)
@@ -253,7 +382,11 @@
       if (state.mapBreaks && !manual) state.mapBreaks = "";
       const innerBreaks = manual ? requested : automatic;
       const boundaries = [0, ...innerBreaks, scaleMaximum];
-      return { boundaries, innerBreaks, manual, metricValues, scaleMaximum };
+      return cachePut(mapScaleCache, cacheKey, {
+        boundaries, innerBreaks, manual, metricValues, scaleMaximum,
+        algorithm: manual ? "manual" : "jenks",
+        manualScale: manualMaximum > 0
+      }, 24);
     };
 
     const mapClassIndex = (value, boundaries) => {
@@ -288,6 +421,17 @@
         if (color) color.value = state.treeColor;
       }
       if (state.view === "map") {
+        const mapUnit = document.getElementById("mapUnit");
+        if (mapUnit) {
+          mapUnit.onchange = () => {
+            const nextUnit = mapUnit.value;
+            if (nextUnit === state.mapUnit) return;
+            state.mapUnit = nextUnit;
+            state.mapBreaks = "";
+            state.mapScaleMax = "";
+            render();
+          };
+        }
         const paletteOptions = Object.entries(paletteDefinitions)
           .map(([value, definition]) => `<option value="${value}">${definition.label}</option>`)
           .join("");
@@ -296,9 +440,10 @@
             <label><span>Минимум <output>${state.mapColorLow.toUpperCase()}</output></span><input id="mapColorLow" type="color" value="${state.mapColorLow}"></label>
             <label><span>Максимум <output>${state.mapColorHigh.toUpperCase()}</output></span><input id="mapColorHigh" type="color" value="${state.mapColorHigh}"></label>
           </div>` : "";
-        const paletteHint = state.mapUnit === "settlement" && state.mapClass === "all" && state.mapMetric === "n"
-          ? "Сейчас цвет точки показывает ведущий класс МКБ. Палитра включится для выбранного класса, доли или показателя на население."
-          : "Палитра применяется к точкам, полигонам и легенде как 5 равных интервальных классов.";
+        const classificationSource = state.mapUnit === "settlement"
+          ? "по значениям населённых пунктов текущего фильтра"
+          : "по значениям муниципалитетов текущего фильтра";
+        const paletteHint = `Цвет всегда показывает выбранный числовой показатель. Автоматические границы пяти классов рассчитываются методом Дженкса отдельно ${classificationSource}.`;
         controls.insertAdjacentHTML("beforeend", `
           <div class="field"><label for="mapPalette">Палитра числовой шкалы</label>
           <select id="mapPalette">${paletteOptions}</select>
@@ -313,10 +458,18 @@
         });
         controls.insertAdjacentHTML("beforeend", `
           <div class="field"><label for="mapLabels">Подписи на карте</label>
-          <select id="mapLabels"><option value="key">Ключевые центры</option><option value="off">Без подписей</option></select></div>`);
+          <select id="mapLabels"><option value="auto">Авто по масштабу</option><option value="centers">Только ключевые центры</option><option value="off">Без подписей</option></select></div>`);
         const labels = document.getElementById("mapLabels");
         labels.value = state.mapLabels;
         labels.onchange = () => { state.mapLabels = labels.value; render(); };
+        const privacy = document.createElement("div");
+        privacy.className = "field";
+        privacy.innerHTML = `<label class="site-map-privacy"><input type="checkbox" ${suppressSmallValues ? "checked" : ""}>Скрывать малые значения n &lt; 5</label>`;
+        privacy.querySelector("input").onchange = (event) => {
+          suppressSmallValues = event.target.checked;
+          render();
+        };
+        controls.appendChild(privacy);
       }
       if (state.view === "dotogram" && state.dotUnit === "settlement") {
         controls.insertAdjacentHTML("beforeend", `
@@ -374,8 +527,8 @@
       const caption = document.createElement("div");
       caption.className = "site-map-palette-caption";
       caption.textContent = state.mapPalette === "custom"
-        ? `5 классов · ${state.mapColorLow.toUpperCase()} → ${state.mapColorHigh.toUpperCase()}`
-        : `5 классов · ${paletteName}`;
+        ? `5 классов Дженкса · ${state.mapColorLow.toUpperCase()} → ${state.mapColorHigh.toUpperCase()}`
+        : `5 классов Дженкса · ${paletteName}`;
       const range = ramp.nextElementSibling;
       range?.insertAdjacentElement("afterend", caption);
       const breaks = document.createElement("div");
@@ -389,7 +542,8 @@
           : '<span class="site-map-break-auto">авто</span>';
         return `<div class="site-map-class-row"><i style="background:${color}"></i><span class="site-map-class-label"><span>${formatTerritoryMetric(state.mapMetric, lower)}–${formatTerritoryMetric(state.mapMetric, upper)}</span><small>(${counts[index]} шт.)</small></span>${input}</div>`;
       }).join("");
-      breaks.insertAdjacentHTML("beforeend", `<div class="site-map-break-actions"><span>${manual ? "границы настроены вручную" : "все диапазоны рассчитаны автоматически"}</span><button type="button" id="mapBreaksReset"${manual ? "" : " disabled"}>Сбросить в авто</button></div>`);
+      const classificationSource = state.mapUnit === "settlement" ? "по НП" : "по муниципалитетам";
+      breaks.insertAdjacentHTML("beforeend", `<div class="site-map-break-actions"><span>${manual ? "границы настроены вручную" : `автоматические интервалы Дженкса · ${classificationSource}`}</span><button type="button" id="mapBreaksReset"${manual ? "" : " disabled"}>Сбросить в авто</button></div>`);
       caption.insertAdjacentElement("afterend", breaks);
       const inputs = [...breaks.querySelectorAll(".site-map-break-input")];
       const applyBreaks = () => {
@@ -570,35 +724,618 @@
       document.getElementById("methodText").textContent = `Dotogram показывает территориальный контекст: НП сгруппированы по муниципалитетам, а муниципалитеты отображаются ранжированным точечным графиком. Подписи выделяют только статистически необычные или крупнейшие значения.${rateBase(state.dotMetric) ? ` Показатель рассчитан как смерти в текущем фильтре / (население ${DATA.populationYear} × ${rateYearsLabel()}) × ${fmt(rateBase(state.dotMetric))}; результат приведён к среднему за один год.${state.sex !== "all" || state.age !== "all" ? " Знаменатель — общая численность населения, а не выбранная половозрастная группа." : ""}` : state.dotMetric === "n" || state.dotMetric === "pgpzh" ? " Для абсолютных значений применяется корневая шкала, чтобы крупнейший центр не сжимал остальные территории у нуля." : ""}`;
     };
 
-    const appendMapCenterLabels = (mapSvg) => {
-      if (state.mapLabels !== "key") return;
-      const { defs, map } = geoValues("settlement", state.mapClass);
-      const limit = DATA.regionKey === "amur" ? 12 : 10;
-      const candidates = [...map.values()].filter((value) => value.total > 0).sort((left, right) => right.total - left.total).slice(0, limit * 2);
+    const MAP_WIDTH = 760;
+    const MAP_HEIGHT = 790;
+    let mapRuntime = null;
+    let labelTimer = 0;
+    let viewportFrame = 0;
+    let selectedMapObject = null;
+    const centerByMunicipality = new Map();
+    DATA.settlements.forEach((definition, index) => {
+      const municipality = definition.municipalityIndex;
+      const population = populationValue(definition) || 0;
+      const current = centerByMunicipality.get(municipality);
+      if (!current || population > current.population) {
+        centerByMunicipality.set(municipality, { index, population });
+      }
+    });
+    const centerSettlementIndexes = new Set([...centerByMunicipality.values()].map((item) => item.index));
+    const regionalCapitalIndex = DATA.settlements.reduce((best, definition, index) =>
+      (populationValue(definition) || 0) > (populationValue(DATA.settlements[best]) || 0) ? index : best, 0);
+
+    const settlementVisual = (definition) => {
+      const population = populationValue(definition);
+      if (!population) return { diameter: 7, ring: 0, missing: true, label: "нет данных" };
+      if (population <= 1000) return { diameter: 6, ring: 0, label: "до 1 тыс." };
+      if (population <= 2500) return { diameter: 8, ring: 0, label: "1–2,5 тыс." };
+      if (population <= 5000) return { diameter: 12, ring: 0, label: "2,5–5 тыс." };
+      if (population <= 10000) return { diameter: 17, ring: 0, label: "5–10 тыс." };
+      if (population <= 20000) return { diameter: 21, ring: 0, label: "10–20 тыс." };
+      if (population <= 40000) return { diameter: 26, ring: 0, label: "20–40 тыс." };
+      if (population <= 200000) return { diameter: 42, ring: 8, label: "40–200 тыс." };
+      return { diameter: 62, ring: 11, label: "свыше 200 тыс." };
+    };
+
+    const populationLegendHtml = () => {
+      const ranges = [
+        { label: "до 1 тыс.", test: (value) => value > 0 && value <= 1000, visual: { diameter: 6, ring: 0 } },
+        { label: "1–2,5 тыс.", test: (value) => value > 1000 && value <= 2500, visual: { diameter: 8, ring: 0 } },
+        { label: "2,5–5 тыс.", test: (value) => value > 2500 && value <= 5000, visual: { diameter: 12, ring: 0 } },
+        { label: "5–10 тыс.", test: (value) => value > 5000 && value <= 10000, visual: { diameter: 17, ring: 0 } },
+        { label: "10–20 тыс.", test: (value) => value > 10000 && value <= 20000, visual: { diameter: 21, ring: 0 } },
+        { label: "20–40 тыс.", test: (value) => value > 20000 && value <= 40000, visual: { diameter: 26, ring: 0 } },
+        { label: "40–200 тыс.", test: (value) => value > 40000 && value <= 200000, visual: { diameter: 42, ring: 8 } },
+        { label: "> 200 тыс.", test: (value) => value > 200000, visual: { diameter: 62, ring: 11 } }
+      ];
+      const rows = ranges.map((range) => {
+        const count = DATA.settlements.filter((definition) => range.test(populationValue(definition) || 0)).length;
+        const kind = range.visual.ring ? " donut" : "";
+        const displaySize = range.visual.diameter === 42 ? 24 : range.visual.diameter === 62 ? 30 : range.visual.diameter;
+        return `<span class="site-population-size-item"><i class="site-population-symbol${kind}" style="--symbol-size:${displaySize}px;--ring-size:${Math.max(3, Math.min(range.visual.ring, 7))}px"></i><span>${range.label}</span><small>${count} шт.</small></span>`;
+      }).join("");
+      const missing = DATA.settlements.filter((definition) => !populationValue(definition)).length;
+      return `<div class="site-population-size-legend"><b>Размер · население ${DATA.populationYear}</b><div>${rows}</div><p>Пунктир — численность не указана (${missing} шт.). Размер не меняется при выборе показателя.</p></div>`;
+    };
+
+    const settlementLabelLegendHtml = () => `
+      <div class="site-settlement-label-legend">
+        <b>Подписи · тип НП и масштаб</b>
+        <div>
+          <span class="city">Город</span>
+          <span class="settlement">Остальные НП</span>
+        </div>
+        <p>Города — полужирный шрифт 15 px. Остальные НП — обычный шрифт 10–11 px в зависимости от масштаба.</p>
+      </div>`;
+
+    const municipalityLabelLegendHtml = () => `
+      <div class="site-settlement-label-legend">
+        <b>Подписи · ключевые города</b>
+        <div><span class="city">● Городской центр</span></div>
+        <p>Опорные точки и названия городов сохраняются поверх муниципальных полигонов; размер подписей — 15 px.</p>
+      </div>`;
+
+    const syncMapPanelHeight = () => {
+      if (!mapRuntime?.root?.isConnected) return;
+      const height = Math.round(mapRuntime.svg.getBoundingClientRect().height);
+      if (!height) return;
+      mapRuntime.side.style.height = `${height}px`;
+      mapRuntime.side.style.maxHeight = `${height}px`;
+    };
+
+    const createMapRuntime = () => {
+      mapRuntime?.panelResizeObserver?.disconnect();
+      const root = document.createElement("div");
+      root.className = "map-layout site-optimized-map";
+      const stage = document.createElement("div");
+      stage.className = "site-map-canvas site-map-stage";
+      const mapSvg = svg("svg", {
+        viewBox: mapViewport.join(" "),
+        class: "svg-chart site-map-svg",
+        "aria-label": "Интерактивная карта населённых пунктов и муниципальных территорий",
+        preserveAspectRatio: "xMidYMid meet"
+      });
+      const polygonLayer = svg("g", { class: "site-map-polygon-layer" });
+      const markerLayer = svg("g", { class: "site-map-marker-layer" });
+      const labelLayer = svg("g", { class: "site-map-label-layer", "aria-hidden": "true" });
+      const polygonEntries = DATA.municipalities.map((definition, index) => {
+        const path = svg("path", {
+          d: geoPath(definition.geometry, MAP_WIDTH, MAP_HEIGHT),
+          fill: "#e8eff5",
+          stroke: "#fff",
+          "stroke-width": 1.2,
+          "stroke-linejoin": "round",
+          "stroke-linecap": "round",
+          "vector-effect": "non-scaling-stroke",
+          "data-map-kind": "mo",
+          "data-index": index
+        });
+        polygonLayer.appendChild(path);
+        return { path, definition, index };
+      });
+      const settlementOrder = DATA.settlements
+        .map((definition, index) => ({ definition, index, population: populationValue(definition) || 0 }))
+        .sort((left, right) => right.population - left.population);
+      const markerEntries = new Array(DATA.settlements.length);
+      settlementOrder.forEach(({ definition, index }) => {
+        const [x, y] = project(definition.x3857, definition.y3857, MAP_WIDTH, MAP_HEIGHT);
+        const visual = settlementVisual(definition);
+        const group = svg("g", {
+          class: "site-map-marker",
+          "data-map-kind": "settlement",
+          "data-index": index,
+          role: "button",
+          tabindex: "0"
+        });
+        const halo = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#f4b400", display: "none", "pointer-events": "none" });
+        group.appendChild(halo);
+        let main, outer, inner;
+        if (visual.ring) {
+          main = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#61758a", "pointer-events": "none" });
+          outer = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#25344a", "pointer-events": "none" });
+          inner = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#25344a", "pointer-events": "none" });
+          group.append(main, outer, inner);
+        } else {
+          main = svg("circle", { cx: x, cy: y, fill: "#61758a", stroke: "#25344a", "pointer-events": "none" });
+          if (visual.missing) main.setAttribute("stroke-dasharray", "2 1.5");
+          group.appendChild(main);
+        }
+        const hit = svg("circle", { cx: x, cy: y, fill: "transparent", stroke: "none", class: "site-map-hit" });
+        group.appendChild(hit);
+        markerLayer.appendChild(group);
+        markerEntries[index] = { group, main, outer, inner, halo, hit, visual, definition, x, y, index };
+      });
+      mapSvg.append(polygonLayer, markerLayer, labelLayer);
+      stage.appendChild(mapSvg);
+      const controls = document.createElement("div");
+      controls.className = "site-map-controls";
+      controls.setAttribute("aria-label", "Управление масштабом карты");
+      controls.innerHTML = '<button type="button" data-map-zoom="in" aria-label="Приблизить карту">+</button><button type="button" data-map-zoom="out" aria-label="Отдалить карту">−</button><button type="button" data-map-zoom="reset">Сброс</button><output data-map-zoom-level>1×</output>';
+      stage.appendChild(controls);
+      const side = document.createElement("aside");
+      side.className = "map-side";
+      side.innerHTML = '<div class="map-legend"></div><h3>Наибольшие значения</h3><div class="rank-list"></div>';
+      root.append(stage, side);
+      els.viz.innerHTML = "";
+      els.viz.appendChild(root);
+      mapRuntime = {
+        root, stage, svg: mapSvg, controls, side,
+        legend: side.querySelector(".map-legend"),
+        rank: side.querySelector(".rank-list"),
+        polygonLayer, markerLayer, labelLayer, polygonEntries, markerEntries,
+        defs: [], values: new Map(), unit: null, context: null, lastUpdateMs: 0,
+        drag: null, dragMoved: false, panelResizeObserver: null
+      };
+      if (typeof ResizeObserver !== "undefined") {
+        mapRuntime.panelResizeObserver = new ResizeObserver(() => syncMapPanelHeight());
+        mapRuntime.panelResizeObserver.observe(mapSvg);
+      }
+      requestAnimationFrame(syncMapPanelHeight);
+
+      controls.querySelector('[data-map-zoom="in"]').onclick = () => zoomMap(0.8);
+      controls.querySelector('[data-map-zoom="out"]').onclick = () => zoomMap(1.25);
+      controls.querySelector('[data-map-zoom="reset"]').onclick = () => {
+        mapViewport = [0, 0, MAP_WIDTH, MAP_HEIGHT];
+        applyMapViewport();
+        setStatus("Охват карты сброшен.");
+      };
+      mapSvg.addEventListener("wheel", (event) => {
+        if (event.target.closest("select")) return;
+        event.preventDefault();
+        const bounds = mapSvg.getBoundingClientRect();
+        const centerX = mapViewport[0] + (event.clientX - bounds.left) / bounds.width * mapViewport[2];
+        const centerY = mapViewport[1] + (event.clientY - bounds.top) / bounds.height * mapViewport[3];
+        zoomMap(event.deltaY > 0 ? 1.16 : 0.86, centerX, centerY);
+      }, { passive: false });
+      mapSvg.addEventListener("pointerdown", (event) => {
+        if (event.button !== 0) return;
+        mapRuntime.dragMoved = false;
+        mapRuntime.drag = { x: event.clientX, y: event.clientY, view: [...mapViewport], moved: false };
+        mapSvg.setPointerCapture(event.pointerId);
+        mapSvg.classList.add("is-panning");
+        mapRuntime.labelLayer.classList.add("is-moving");
+      });
+      mapSvg.addEventListener("pointermove", (event) => {
+        if (!mapRuntime.drag) {
+          const target = event.target.closest("[data-map-kind]");
+          if (target) showMapTooltip(event, target);
+          else hideTip();
+          return;
+        }
+        const bounds = mapSvg.getBoundingClientRect();
+        const dx = (event.clientX - mapRuntime.drag.x) / bounds.width * mapRuntime.drag.view[2];
+        const dy = (event.clientY - mapRuntime.drag.y) / bounds.height * mapRuntime.drag.view[3];
+        if (Math.abs(dx) + Math.abs(dy) > 1) mapRuntime.drag.moved = true;
+        mapViewport = [mapRuntime.drag.view[0] - dx, mapRuntime.drag.view[1] - dy, mapRuntime.drag.view[2], mapRuntime.drag.view[3]];
+        applyMapViewport();
+      });
+      const finishDrag = () => {
+        mapRuntime.dragMoved = Boolean(mapRuntime.drag?.moved);
+        mapRuntime.drag = null;
+        mapSvg.classList.remove("is-panning");
+        scheduleMapLabels(40);
+      };
+      mapSvg.addEventListener("pointerup", finishDrag);
+      mapSvg.addEventListener("pointercancel", finishDrag);
+      mapSvg.addEventListener("pointerleave", (event) => {
+        if (!mapRuntime.drag) hideTip();
+      });
+      mapSvg.addEventListener("click", (event) => {
+        if (mapRuntime.dragMoved) {
+          mapRuntime.dragMoved = false;
+          return;
+        }
+        const target = event.target.closest("[data-map-kind]");
+        if (!target) {
+          selectedMapObject = null;
+          syncMapSelection();
+          return;
+        }
+        selectMapObject(target.dataset.mapKind, +target.dataset.index);
+      });
+      mapSvg.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const target = event.target.closest("[data-map-kind]");
+        if (!target) return;
+        event.preventDefault();
+        selectMapObject(target.dataset.mapKind, +target.dataset.index);
+      });
+      return mapRuntime;
+    };
+
+    const clampMapViewport = () => {
+      const [x, y, width, height] = mapViewport;
+      const marginX = width * .08, marginY = height * .08;
+      const minX = -marginX, maxX = MAP_WIDTH - width + marginX;
+      const minY = -marginY, maxY = MAP_HEIGHT - height + marginY;
+      mapViewport = [
+        Math.max(minX, Math.min(maxX, x)),
+        Math.max(minY, Math.min(maxY, y)),
+        width,
+        height
+      ];
+    };
+
+    const mapUserUnitsPerPixel = () => {
+      const width = mapRuntime?.svg.getBoundingClientRect().width || MAP_WIDTH;
+      return mapViewport[2] / Math.max(width, 1);
+    };
+
+    const syncMapSymbolSizes = () => {
+      if (!mapRuntime) return;
+      const unit = mapUserUnitsPerPixel();
+      mapRuntime.markerEntries.forEach((entry) => {
+        const outerRadius = entry.visual.diameter / 2;
+        const haloRadius = outerRadius + 3;
+        entry.halo.setAttribute("r", haloRadius * unit);
+        entry.halo.setAttribute("stroke-width", 2.2 * unit);
+        entry.hit.setAttribute("r", Math.max(8, outerRadius + 2) * unit);
+        if (entry.visual.ring) {
+          const innerRadius = outerRadius - entry.visual.ring;
+          entry.main.setAttribute("r", (outerRadius - entry.visual.ring / 2) * unit);
+          entry.main.setAttribute("stroke-width", entry.visual.ring * unit);
+          entry.outer.setAttribute("r", outerRadius * unit);
+          entry.outer.setAttribute("stroke-width", 1.25 * unit);
+          entry.inner.setAttribute("r", innerRadius * unit);
+          entry.inner.setAttribute("stroke-width", 1.25 * unit);
+        } else {
+          entry.main.setAttribute("r", outerRadius * unit);
+          entry.main.setAttribute("stroke-width", 1.25 * unit);
+          if (entry.visual.missing) entry.main.setAttribute("stroke-dasharray", `${2 * unit} ${1.5 * unit}`);
+        }
+      });
+      const zoom = MAP_WIDTH / mapViewport[2];
+      const output = mapRuntime.controls.querySelector("[data-map-zoom-level]");
+      if (output) output.textContent = `${DF.format(zoom)}×`;
+    };
+
+    const scheduleMapLabels = (delay = 110) => {
+      window.clearTimeout(labelTimer);
+      labelTimer = window.setTimeout(renderMapLabels, delay);
+    };
+
+    const applyMapViewport = () => {
+      if (!mapRuntime) return;
+      clampMapViewport();
+      mapRuntime.labelLayer.classList.add("is-moving");
+      if (viewportFrame) return;
+      viewportFrame = requestAnimationFrame(() => {
+        viewportFrame = 0;
+        if (!mapRuntime) return;
+        mapRuntime.svg.setAttribute("viewBox", mapViewport.join(" "));
+        syncMapSymbolSizes();
+        scheduleMapLabels();
+      });
+    };
+
+    const zoomMap = (factor, centerX = mapViewport[0] + mapViewport[2] / 2, centerY = mapViewport[1] + mapViewport[3] / 2) => {
+      const nextWidth = Math.max(MAP_WIDTH / 10, Math.min(MAP_WIDTH, mapViewport[2] * factor));
+      const nextHeight = nextWidth * MAP_HEIGHT / MAP_WIDTH;
+      const ratioX = (centerX - mapViewport[0]) / mapViewport[2];
+      const ratioY = (centerY - mapViewport[1]) / mapViewport[3];
+      mapViewport = [centerX - nextWidth * ratioX, centerY - nextHeight * ratioY, nextWidth, nextHeight];
+      applyMapViewport();
+    };
+
+    const labelPopulationThreshold = (zoom) => {
+      if (zoom < 1.5) return 40000;
+      if (zoom < 2.2) return 20000;
+      if (zoom < 3.2) return 10000;
+      if (zoom < 4.8) return 5000;
+      if (zoom < 6.5) return 1000;
+      return 0;
+    };
+
+    const labelFontSize = (definition, zoom) => {
+      const zoomProgress = Math.log2(Math.max(1, Math.min(10, zoom))) / Math.log2(10);
+      if (definition.isCity) return 15;
+      return 10 + zoomProgress;
+    };
+
+    const renderMapLabels = () => {
+      if (!mapRuntime) return;
+      const layer = mapRuntime.labelLayer;
+      layer.innerHTML = "";
+      layer.classList.remove("is-moving");
+      const settlementMode = state.mapUnit === "settlement";
+      if (!settlementMode && state.mapUnit !== "mo") return;
+      if (state.mapLabels === "off") return;
+      const bounds = mapRuntime.svg.getBoundingClientRect();
+      if (!bounds.width || !bounds.height) return;
+      const zoom = MAP_WIDTH / mapViewport[2];
+      const threshold = labelPopulationThreshold(zoom);
+      const selectedIndex = settlementMode && selectedMapObject?.kind === "settlement" ? selectedMapObject.index : -1;
+      const candidates = mapRuntime.markerEntries
+        .filter((entry) => settlementMode ? entry.group.style.display !== "none" : Boolean(entry.definition.isCity))
+        .filter((entry) => {
+          if (!settlementMode) return true;
+          if (entry.index === selectedIndex) return true;
+          const center = centerSettlementIndexes.has(entry.index);
+          if (state.mapLabels === "centers") return center;
+          return entry.definition.isCity || center || (populationValue(entry.definition) || 0) >= threshold;
+        })
+        .sort((left, right) => {
+          const selectedDelta = Number(right.index === selectedIndex) - Number(left.index === selectedIndex);
+          if (selectedDelta) return selectedDelta;
+          const capitalDelta = Number(right.index === regionalCapitalIndex) - Number(left.index === regionalCapitalIndex);
+          if (capitalDelta) return capitalDelta;
+          const cityDelta = Number(Boolean(right.definition.isCity)) - Number(Boolean(left.definition.isCity));
+          if (cityDelta) return cityDelta;
+          const centerDelta = Number(centerSettlementIndexes.has(right.index)) - Number(centerSettlementIndexes.has(left.index));
+          if (centerDelta) return centerDelta;
+          return (populationValue(right.definition) || 0) - (populationValue(left.definition) || 0);
+        });
       const placed = [];
-      const layer = svg("g", { class: "site-map-label-layer", "aria-hidden": "true" });
-      for (const value of candidates) {
-        if (placed.length >= limit) break;
-        const definition = defs[value.idx];
-        const [x, y] = project(definition.x3857, definition.y3857, 760, 790);
-        const label = definition.name.length > 20 ? `${definition.name.slice(0, 19)}…` : definition.name;
-        const width = Math.max(48, label.length * 6.2 + 8), height = 15;
-        const attempts = [[7, -16], [7, 4], [-width - 7, -16], [-width - 7, 4], [10, -31], [-width - 10, -31]];
+      const unit = mapUserUnitsPerPixel();
+      const toScreen = (x, y) => [
+        (x - mapViewport[0]) / mapViewport[2] * bounds.width,
+        (y - mapViewport[1]) / mapViewport[3] * bounds.height
+      ];
+      const toWorld = (x, y) => [
+        mapViewport[0] + x / bounds.width * mapViewport[2],
+        mapViewport[1] + y / bounds.height * mapViewport[3]
+      ];
+      const markerObstacles = (settlementMode
+        ? mapRuntime.markerEntries.filter((entry) => entry.group.style.display !== "none")
+        : candidates)
+        .map((entry) => {
+          const [x, y] = toScreen(entry.x, entry.y);
+          const radius = settlementMode ? Math.max(3, entry.visual.diameter / 2) : 3.2;
+          return { index: entry.index, x: x - radius, y: y - radius, w: radius * 2, h: radius * 2 };
+        });
+      candidates.forEach((entry) => {
+        const [screenX, screenY] = toScreen(entry.x, entry.y);
+        if (screenX < -40 || screenX > bounds.width + 40 || screenY < -40 || screenY > bounds.height + 40) return;
+        const isCity = Boolean(entry.definition.isCity);
+        const font = labelFontSize(entry.definition, zoom);
+        const label = entry.definition.name.length > 28 ? `${entry.definition.name.slice(0, 27)}…` : entry.definition.name;
+        const widthFactor = isCity ? .6 : .54;
+        const width = Math.max(isCity ? 48 : 38, label.length * font * widthFactor + 7);
+        const height = font + 5;
+        const radius = settlementMode ? entry.visual.diameter / 2 : 3.2;
+        const gap = radius + 6;
+        const attempts = [
+          [gap, -height / 2], [-gap - width, -height / 2],
+          [-width / 2, -gap - height], [-width / 2, gap],
+          [gap * .72, -gap * .72 - height], [-gap * .72 - width, -gap * .72 - height],
+          [gap * .72, gap * .72], [-gap * .72 - width, gap * .72]
+        ];
+        if (!settlementMode) {
+          const far = gap + font + 8;
+          const farther = far + font * 1.8 + 8;
+          attempts.push(
+            [far, -height / 2], [-far - width, -height / 2],
+            [-width / 2, -far - height], [-width / 2, far],
+            [far * .72, -far * .72 - height], [-far * .72 - width, -far * .72 - height],
+            [far * .72, far * .72], [-far * .72 - width, far * .72],
+            [farther, -height / 2], [-farther - width, -height / 2],
+            [-width / 2, -farther - height], [-width / 2, farther],
+            [farther * .72, -farther * .72 - height], [-farther * .72 - width, -farther * .72 - height],
+            [farther * .72, farther * .72], [-farther * .72 - width, farther * .72]
+          );
+        }
         let box = null;
         for (const [dx, dy] of attempts) {
-          const candidate = { x: x + dx, y: y + dy, w: width, h: height };
-          const inside = candidate.x >= 2 && candidate.x + candidate.w <= 758 && candidate.y >= 2 && candidate.y + candidate.h <= 788;
-          const overlaps = placed.some((other) => !(candidate.x + candidate.w + 3 < other.x || other.x + other.w + 3 < candidate.x || candidate.y + candidate.h + 3 < other.y || other.y + other.h + 3 < candidate.y));
-          if (inside && !overlaps) { box = candidate; break; }
+          const candidate = { x: screenX + dx, y: screenY + dy, w: width, h: height };
+          const inside = candidate.x >= 3 && candidate.x + candidate.w <= bounds.width - 3
+            && candidate.y >= 3 && candidate.y + candidate.h <= bounds.height - 3;
+          const overlaps = placed.some((other) => !(candidate.x + candidate.w + 4 < other.x
+            || other.x + other.w + 4 < candidate.x
+            || candidate.y + candidate.h + 3 < other.y
+            || other.y + other.h + 3 < candidate.y));
+          const coversMarker = markerObstacles.some((other) => other.index !== entry.index
+            && !(candidate.x + candidate.w + 2 < other.x
+              || other.x + other.w + 2 < candidate.x
+              || candidate.y + candidate.h + 2 < other.y
+              || other.y + other.h + 2 < candidate.y));
+          if (inside && !overlaps && !coversMarker) {
+            box = candidate;
+            break;
+          }
         }
-        if (!box) continue;
+        if (!box && entry.index === selectedIndex) {
+          box = {
+            x: Math.max(3, Math.min(bounds.width - width - 3, screenX + gap)),
+            y: Math.max(3, Math.min(bounds.height - height - 3, screenY - height / 2)),
+            w: width,
+            h: height
+          };
+        }
+        if (!box) return;
         placed.push(box);
-        layer.appendChild(svg("circle", { cx: x, cy: y, r: 2.2, class: "map-center-marker" }));
-        const text = textNode(layer, box.x + (box.x < x ? box.w - 3 : 3), box.y + 11, label, "map-center-label", box.x < x ? "end" : "start");
+        if (!settlementMode) {
+          const anchorX = Math.max(box.x, Math.min(screenX, box.x + box.w));
+          const anchorY = Math.max(box.y, Math.min(screenY, box.y + box.h));
+          if (Math.hypot(anchorX - screenX, anchorY - screenY) > gap + 4) {
+            const [leaderX, leaderY] = toWorld(anchorX, anchorY);
+            layer.appendChild(svg("line", {
+              x1: entry.x,
+              y1: entry.y,
+              x2: leaderX,
+              y2: leaderY,
+              class: "map-center-leader",
+              "vector-effect": "non-scaling-stroke"
+            }));
+          }
+          const marker = svg("circle", {
+            cx: entry.x,
+            cy: entry.y,
+            r: 3.2 * unit,
+            class: "map-center-marker",
+            "stroke-width": 1.25 * unit,
+            "data-city-center": entry.index
+          });
+          layer.appendChild(marker);
+        }
+        const [worldX, worldY] = toWorld(box.x + 3, box.y + font);
+        const text = textNode(layer, worldX, worldY, label, `map-center-label ${isCity ? "city" : "settlement"}${entry.index === selectedIndex ? " selected" : ""}`, "start");
+        text.setAttribute("font-size", font * unit);
+        text.setAttribute("stroke-width", 3.5 * unit);
         text.setAttribute("paint-order", "stroke");
+        text.setAttribute("data-label-kind", isCity ? "city" : "settlement");
+        text.setAttribute("data-font-px", font.toFixed(2));
+      });
+    };
+
+    const syncMapSelection = () => {
+      if (!mapRuntime) return;
+      mapRuntime.polygonEntries.forEach((entry) => {
+        const selected = selectedMapObject?.kind === "mo" && selectedMapObject.index === entry.index;
+        entry.path.classList.toggle("site-atlas-highlight", selected);
+      });
+      mapRuntime.markerEntries.forEach((entry) => {
+        const selected = selectedMapObject?.kind === "settlement" && selectedMapObject.index === entry.index;
+        entry.group.classList.toggle("site-atlas-highlight", selected);
+        entry.halo.setAttribute("display", selected ? "" : "none");
+        if (selected) entry.group.parentNode.appendChild(entry.group);
+      });
+      scheduleMapLabels(0);
+    };
+
+    const selectMapObject = (kind, index) => {
+      if ((kind === "mo" && state.mapUnit !== "mo") || (kind === "settlement" && state.mapUnit !== "settlement")) return;
+      selectedMapObject = { kind, index };
+      syncMapSelection();
+      const definition = kind === "mo" ? DATA.municipalities[index] : DATA.settlements[index];
+      setStatus(`Объект закреплён: ${definition?.name || "не указан"}`);
+    };
+
+    const mapTooltipHtml = (kind, index) => {
+      if (!mapRuntime || kind !== (state.mapUnit === "mo" ? "mo" : "settlement")) return "";
+      const definition = mapRuntime.defs[index];
+      const value = mapRuntime.values.get(index);
+      if (!definition || !value) return "";
+      const metricValue = value.metricValue;
+      return `<b>${esc(definition.name)}${kind === "settlement" ? ` · ID слоя ${definition.id}` : ""}</b><div class="tip-grid">
+        ${kind === "settlement" ? `<span>Муниципалитет</span><strong>${esc(definition.municipality)}</strong>` : ""}
+        <span>${territoryMetricLabel(state.mapMetric)}</span><strong>${formatTerritoryMetric(state.mapMetric, metricValue)}</strong>
+        ${rateBase(state.mapMetric) ? `<span>Расчёт</span><strong>${rateFormula(value.selected, definition, state.mapMetric)}</strong>` : ""}
+        <span>Население ${DATA.populationYear}</span><strong>${populationValue(definition) ? fmt(populationValue(definition)) : "н/д"}</strong>
+        <span>Всего смертей</span><strong>${fmt(value.total)}</strong>
+        <span>Выбрано</span><strong>${fmt(value.selected)}</strong>
+        <span>Доля класса</span><strong>${pct(value.total ? value.selected / value.total * 100 : 0)}</strong>
+        <span>Структура</span><strong>${esc(topClasses(value))}</strong>
+      </div>`;
+    };
+
+    const showMapTooltip = (event, target) => {
+      const html = mapTooltipHtml(target.dataset.mapKind, +target.dataset.index);
+      if (html) showTip(event, html);
+    };
+
+    const updateOptimizedMap = (context) => {
+      const started = performance.now();
+      if (!mapRuntime || !mapRuntime.root.isConnected) createMapRuntime();
+      const { defs, map } = geoValues(state.mapUnit, state.mapClass);
+      const totalRows = filtered().length;
+      const values = [...map.values()];
+      values.forEach((value) => {
+        value.metricValue = territoryMetric(state.mapMetric, value, defs[value.idx], state.mapClass, totalRows);
+      });
+      mapRuntime.defs = defs;
+      mapRuntime.values = map;
+      mapRuntime.unit = state.mapUnit;
+      mapRuntime.context = context;
+      const colors = paletteClassColors();
+      const colorFor = (value) => Number.isFinite(value?.metricValue)
+        ? colors[mapClassIndex(value.metricValue, context.boundaries)]
+        : "#98a2b3";
+      mapRuntime.polygonEntries.forEach((entry) => {
+        const value = map.get(entry.index);
+        const active = state.mapUnit === "mo" && Boolean(value);
+        entry.path.style.pointerEvents = state.mapUnit === "mo" ? "" : "none";
+        entry.path.setAttribute("fill", state.mapUnit === "mo" ? (active ? colorFor(value) : "#e5e7eb") : "#e8eff5");
+        entry.path.setAttribute("tabindex", active ? "0" : "-1");
+        if (active) {
+          entry.path.setAttribute("role", "button");
+          entry.path.setAttribute("aria-label", `${entry.definition.name}: ${formatTerritoryMetric(state.mapMetric, value.metricValue)}`);
+        } else {
+          entry.path.removeAttribute("role");
+          entry.path.removeAttribute("aria-label");
+        }
+        entry.path.classList.toggle("site-map-suppressed", active && suppressSmallValues && value.selected < 5);
+      });
+      mapRuntime.markerEntries.forEach((entry) => {
+        const value = map.get(entry.index);
+        const active = state.mapUnit === "settlement" && Boolean(value);
+        entry.group.style.display = active ? "" : "none";
+        entry.group.setAttribute("tabindex", active ? "0" : "-1");
+        if (!active) return;
+        const color = colorFor(value);
+        if (entry.visual.ring) entry.main.setAttribute("stroke", color);
+        else entry.main.setAttribute("fill", color);
+        entry.group.setAttribute("aria-label", `${entry.definition.name}: ${formatTerritoryMetric(state.mapMetric, value.metricValue)}, население ${populationValue(entry.definition) ? fmt(populationValue(entry.definition)) : "не указано"}`);
+        entry.group.classList.toggle("site-map-suppressed", suppressSmallValues && value.selected < 5);
+      });
+      const ranked = values
+        .filter((value) => Number.isFinite(value.metricValue))
+        .sort((left, right) => right.metricValue - left.metricValue)
+        .slice(0, 15);
+      mapRuntime.rank.innerHTML = ranked.map((value, index) =>
+        `<div class="rank-item${suppressSmallValues && value.selected < 5 ? " site-map-suppressed" : ""}"><span>${index + 1}. ${esc(defs[value.idx].name)}</span><b>${formatTerritoryMetric(state.mapMetric, value.metricValue)}</b></div>`
+      ).join("");
+      const unitLabel = state.mapMetric === "share" ? "%" : rateBase(state.mapMetric) ? "" : "смертей";
+      const rateNote = rateBase(state.mapMetric)
+        ? `<div class="site-map-legend-note">Среднегодовой расчёт: смерти / население ${DATA.populationYear} / ${rateYearsLabel()}. Серый цвет — нет положительного знаменателя.${state.sex !== "all" || state.age !== "all" ? "<br><strong>Знаменатель — общая численность населения.</strong>" : ""}</div>`
+        : "";
+      mapRuntime.legend.innerHTML = `<b>Проекция · EPSG:3857</b>
+        <b>Цвет · ${territoryMetricLabel(state.mapMetric)}</b>
+        <div class="legend-ramp"></div>
+        <div class="legend-range"><span>0 ${unitLabel}</span><span>${formatTerritoryMetric(state.mapMetric, context.scaleMaximum)}</span></div>
+        ${rateNote}
+        ${state.mapUnit === "settlement" ? populationLegendHtml() : ""}
+        ${state.mapUnit === "settlement" ? settlementLabelLegendHtml() : ""}
+        ${state.mapUnit === "mo" ? municipalityLabelLegendHtml() : ""}
+        ${suppressSmallValues ? '<div class="site-map-legend-note">Малые значения n &lt; 5 скрыты</div>' : ""}
+        <div class="legend-range"><span>${context.manualScale ? "шкала задана вручную" : "автомасштаб по фильтру · Дженкс"}</span><span>Web Mercator</span></div>`;
+      syncMapSymbolSizes();
+      syncMapSelection();
+      applyMapViewport();
+      requestAnimationFrame(syncMapPanelHeight);
+      mapRuntime.lastUpdateMs = performance.now() - started;
+      if (debugMap) {
+        let debug = mapRuntime.side.querySelector(".site-map-debug");
+        if (!debug) {
+          debug = document.createElement("div");
+          debug.className = "site-map-debug";
+          mapRuntime.side.appendChild(debug);
+        }
+        debug.textContent = `filter ${mapPerformance.filterMiss ? DF.format(mapPerformance.filterMs) + " мс" : "cache"} · aggregate ${mapPerformance.aggregateMiss ? DF.format(mapPerformance.aggregateMs) + " мс" : "cache"} · paint ${DF.format(mapRuntime.lastUpdateMs)} мс · ${values.length} объектов`;
       }
-      mapSvg.appendChild(layer);
-      document.querySelector(".map-legend")?.insertAdjacentHTML("beforeend", '<div class="site-map-legend-note">Подписаны ключевые центры по объёму данных</div>');
+    };
+
+    const renderOptimizedMapView = () => {
+      mapPerformance.filterMiss = false;
+      mapPerformance.aggregateMiss = false;
+      localControls();
+      renderKpis();
+      els.title.textContent = VIEWS.map[0];
+      els.subtitle.textContent = VIEWS.map[1];
+      els.method.textContent = state.mapUnit === "settlement"
+        ? "Размер знака НП определяется населением переписи 2021 года и не меняется при фильтрации. Цвет показывает выбранный показатель по пяти классам Дженкса. Города подписаны полужирным шрифтом 15 px, остальные НП — обычным шрифтом 10–11 px. Колесо масштабирует карту, перетаскивание изменяет охват."
+        : "Муниципальные полигоны окрашены по выбранному показателю и пяти классам Дженкса. Поверх районов сохраняются опорные точки и подписи ключевых городов размером 15 px; переключатель подписей позволяет их скрыть. Колесо масштабирует карту, перетаскивание изменяет охват.";
+      els.meta.innerHTML = `<span class="chip">${state.year === "all" ? (DATA.years.length > 1 ? `${DATA.years[0]}–${DATA.years[DATA.years.length - 1]}` : DATA.years[0]) : state.year}</span><span class="chip">${state.sex === "all" ? "оба пола" : state.sex === "1" ? "мужчины" : "женщины"}</span><span class="chip">${document.querySelector(`#ageSelect option[value="${state.age}"]`)?.textContent || "все возрасты"}</span><span class="chip">EPSG:3857 · Web Mercator</span>`;
+      const context = syncActiveMapBreaks();
+      updateOptimizedMap(context);
     };
 
     const highlightSearchTarget = () => {
@@ -612,146 +1349,14 @@
       } else if (searchTarget.type === "block") {
         target = [...document.querySelectorAll(".tile")].find((tile) => tile.querySelector(".tile-code")?.textContent.trim() === DATA.blocks[searchTarget.index].code);
       } else if (searchTarget.type === "municipality" && state.view === "map") {
-        target = document.querySelectorAll("#viz svg path")[searchTarget.index];
+        target = document.querySelector(`#viz [data-map-kind="mo"][data-index="${searchTarget.index}"]`);
       } else if (searchTarget.type === "settlement" && state.view === "map") {
-        const settlement = DATA.settlements[searchTarget.index];
-        const expected = project(settlement.x3857, settlement.y3857, 760, 790);
-        target = [...document.querySelectorAll("#viz svg circle")].find((circle) =>
-          Math.abs(+circle.getAttribute("cx") - expected[0]) < 0.4 && Math.abs(+circle.getAttribute("cy") - expected[1]) < 0.4
-        );
+        target = document.querySelector(`#viz [data-map-kind="settlement"][data-index="${searchTarget.index}"]`);
       }
       if (target) {
         target.classList.add("site-atlas-highlight");
         target.scrollIntoView({ block: "center", inline: "center" });
       }
-    };
-
-    const enhanceMapInteractions = () => {
-      if (state.view !== "map") return;
-      const svg = document.querySelector("#viz .map-layout svg");
-      const canvas = svg?.parentElement;
-      if (!svg || !canvas) return;
-      canvas.classList.add("site-map-canvas");
-      svg.setAttribute("viewBox", mapViewport.join(" "));
-      svg.querySelectorAll("path").forEach((path) => {
-        path.setAttribute("stroke-linejoin", "round");
-        path.setAttribute("stroke-linecap", "round");
-      });
-
-      const controls = document.createElement("div");
-      controls.className = "site-map-controls";
-      controls.setAttribute("aria-label", "Управление масштабом карты");
-      controls.innerHTML = '<button type="button" data-map-zoom="in" aria-label="Приблизить карту">+</button><button type="button" data-map-zoom="out" aria-label="Отдалить карту">−</button><button type="button" data-map-zoom="reset">Сброс</button>';
-      canvas.appendChild(controls);
-
-      const applyViewport = () => svg.setAttribute("viewBox", mapViewport.join(" "));
-      const zoom = (factor, centerX = mapViewport[0] + mapViewport[2] / 2, centerY = mapViewport[1] + mapViewport[3] / 2) => {
-        const nextWidth = Math.max(170, Math.min(760, mapViewport[2] * factor));
-        const nextHeight = nextWidth * 790 / 760;
-        const ratioX = (centerX - mapViewport[0]) / mapViewport[2];
-        const ratioY = (centerY - mapViewport[1]) / mapViewport[3];
-        mapViewport = [centerX - nextWidth * ratioX, centerY - nextHeight * ratioY, nextWidth, nextHeight];
-        applyViewport();
-      };
-      controls.querySelector('[data-map-zoom="in"]').onclick = () => zoom(0.8);
-      controls.querySelector('[data-map-zoom="out"]').onclick = () => zoom(1.25);
-      controls.querySelector('[data-map-zoom="reset"]').onclick = () => {
-        mapViewport = [0, 0, 760, 790];
-        applyViewport();
-        setStatus("Охват карты сброшен.");
-      };
-
-      svg.addEventListener("wheel", (event) => {
-        event.preventDefault();
-        const bounds = svg.getBoundingClientRect();
-        const centerX = mapViewport[0] + (event.clientX - bounds.left) / bounds.width * mapViewport[2];
-        const centerY = mapViewport[1] + (event.clientY - bounds.top) / bounds.height * mapViewport[3];
-        zoom(event.deltaY > 0 ? 1.16 : 0.86, centerX, centerY);
-      }, { passive: false });
-
-      let drag = null;
-      let lastDragMoved = false;
-      svg.addEventListener("pointerdown", (event) => {
-        lastDragMoved = false;
-        drag = { x: event.clientX, y: event.clientY, view: [...mapViewport], moved: false };
-        svg.setPointerCapture(event.pointerId);
-        svg.classList.add("is-panning");
-      });
-      svg.addEventListener("pointermove", (event) => {
-        if (!drag) return;
-        const bounds = svg.getBoundingClientRect();
-        const dx = (event.clientX - drag.x) / bounds.width * drag.view[2];
-        const dy = (event.clientY - drag.y) / bounds.height * drag.view[3];
-        if (Math.abs(dx) + Math.abs(dy) > 1) drag.moved = true;
-        mapViewport = [drag.view[0] - dx, drag.view[1] - dy, drag.view[2], drag.view[3]];
-        applyViewport();
-      });
-      const endDrag = () => {
-        lastDragMoved = Boolean(drag?.moved);
-        drag = null;
-        svg.classList.remove("is-panning");
-      };
-      svg.addEventListener("pointerup", endDrag);
-      svg.addEventListener("pointercancel", endDrag);
-
-      const { defs, map } = geoValues(state.mapUnit, state.mapClass);
-      const shapes = state.mapUnit === "mo"
-        ? [...svg.querySelectorAll("path")]
-        : [...svg.querySelectorAll("circle")];
-      shapes.forEach((shape, shapeIndex) => {
-        let definition;
-        let value;
-        if (state.mapUnit === "mo") {
-          definition = defs[shapeIndex];
-          value = map.get(shapeIndex);
-        } else {
-          const cx = +shape.getAttribute("cx");
-          const cy = +shape.getAttribute("cy");
-          const settlementIndex = DATA.settlements.findIndex((settlement) => {
-            const point = project(settlement.x3857, settlement.y3857, 760, 790);
-            return Math.abs(cx - point[0]) < 0.4 && Math.abs(cy - point[1]) < 0.4;
-          });
-          definition = defs[settlementIndex];
-          value = map.get(settlementIndex);
-        }
-        if (!definition || !value) return;
-        shape.tabIndex = 0;
-        shape.setAttribute("role", "button");
-        shape.setAttribute("aria-label", `${definition.name}: ${value.selected} смертей по выбранной причине, всего ${value.total}`);
-        const lock = () => {
-          shapes.forEach((item) => item.classList.remove("site-atlas-highlight"));
-          shape.classList.add("site-atlas-highlight");
-          setStatus(`Объект закреплён: ${definition.name}`);
-        };
-        shape.addEventListener("click", () => { if (!lastDragMoved) lock(); });
-        shape.addEventListener("keydown", (event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            lock();
-          }
-        });
-        shape.classList.toggle("site-map-suppressed", suppressSmallValues && value.selected < 5);
-      });
-
-      const localControls = document.getElementById("localControls");
-      if (localControls) {
-        const privacy = document.createElement("div");
-        privacy.className = "field";
-        privacy.innerHTML = `<label class="site-map-privacy"><input type="checkbox" ${suppressSmallValues ? "checked" : ""}>Скрывать малые значения n &lt; 5</label>`;
-        privacy.querySelector("input").onchange = (event) => {
-          suppressSmallValues = event.target.checked;
-          render();
-        };
-        localControls.appendChild(privacy);
-      }
-      if (suppressSmallValues) {
-        document.querySelector(".map-legend")?.insertAdjacentHTML("beforeend", '<div class="site-map-legend-note">Малые значения n &lt; 5 скрыты</div>');
-        const definitions = state.mapUnit === "mo" ? DATA.municipalities : DATA.settlements;
-        const metric = (value) => territoryMetric(state.mapMetric, value, definitions[value.idx], state.mapClass, filtered().length);
-        const ranked = [...map.values()].filter((value) => Number.isFinite(metric(value))).sort((a, b) => metric(b) - metric(a)).slice(0, 15);
-        document.querySelectorAll(".rank-item").forEach((item, index) => item.classList.toggle("site-map-suppressed", ranked[index]?.selected < 5));
-      }
-      appendMapCenterLabels(svg);
     };
 
     const actionBox = document.createElement("div");
@@ -882,8 +1487,8 @@
 
     const baseRender = render;
     render = () => {
-      if (state.view === "map") syncActiveMapBreaks();
-      baseRender();
+      if (state.view === "map") renderOptimizedMapView();
+      else baseRender();
       syncGlobalControls();
       writeUrlState();
       addSupplementalControls();
@@ -893,9 +1498,31 @@
       const svgButton = actionBox.querySelector('[data-atlas-action="svg"]');
       svgButton.disabled = !document.querySelector("#viz svg");
       svgButton.title = svgButton.disabled ? "Для этой визуализации SVG недоступен" : "Скачать текущий график в SVG";
-      enhanceMapInteractions();
       requestAnimationFrame(highlightSearchTarget);
     };
+
+    document.querySelectorAll(".viz-btn").forEach((button) => {
+      button.onclick = () => {
+        state.view = button.dataset.view;
+        render();
+      };
+    });
+    const yearSelect = document.getElementById("yearSelect");
+    if (yearSelect) yearSelect.onchange = () => {
+      state.year = yearSelect.value;
+      render();
+    };
+    const ageSelect = document.getElementById("ageSelect");
+    if (ageSelect) ageSelect.onchange = () => {
+      state.age = ageSelect.value;
+      render();
+    };
+    document.querySelectorAll("#sexSeg button").forEach((button) => {
+      button.onclick = () => {
+        state.sex = button.dataset.value;
+        render();
+      };
+    });
 
     window.addEventListener("popstate", () => {
       restoringHistory = true;
