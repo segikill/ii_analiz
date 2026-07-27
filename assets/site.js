@@ -62,6 +62,27 @@
     }
   });
 
+  const selectWheelTimes = new Map();
+  document.addEventListener("wheel", (event) => {
+    const select = event.target instanceof Element ? event.target.closest("select") : null;
+    if (!select || select.disabled || select.multiple || select.size > 1 || event.deltaY === 0) return;
+    event.preventDefault();
+    const key = select.id || select.name || "anonymous-select";
+    const now = performance.now();
+    const previous = selectWheelTimes.get(key);
+    if (previous !== undefined && now - previous < 350) return;
+    selectWheelTimes.set(key, now);
+    const direction = event.deltaY > 0 ? 1 : -1;
+    let nextIndex = select.selectedIndex + direction;
+    while (nextIndex >= 0 && nextIndex < select.options.length && select.options[nextIndex].disabled) {
+      nextIndex += direction;
+    }
+    if (nextIndex < 0 || nextIndex >= select.options.length) return;
+    select.focus({ preventScroll: true });
+    select.selectedIndex = nextIndex;
+    select.dispatchEvent(new Event("change", { bubbles: true }));
+  }, { passive: false });
+
   const improveTreemapContrast = () => {
     document.querySelectorAll(".tile").forEach((tile) => {
       tile.style.setProperty("color", "#ffffff", "important");
