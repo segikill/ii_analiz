@@ -99,17 +99,17 @@
       treeMetric: ["n", "share", "pgpzh"],
       treeColor: ["count", "change", "age"],
       heatUnit: ["mo", "settlement"],
-      heatMetric: ["share", "n", "per10k", "per100k"],
+      heatMetric: ["share", "n", "per1k", "per10k", "per100k"],
       heatLimit: ["25", "50", "all"],
       arrowMode: ["time", "sex", "region"],
       pyramidMetric: ["n", "share"],
       plotLevel: ["class", "code"],
       mapUnit: ["settlement", "mo"],
-      mapMetric: ["n", "share", "per10k", "per100k"],
+      mapMetric: ["n", "share", "per1k", "per10k", "per100k"],
       mapLabels: ["key", "off"],
       mapPalette: ["teal", "blue", "purple", "orange", "green", "rose", "custom"],
       dotUnit: ["settlement", "mo"],
-      dotMetric: ["n", "share", "median", "pgpzh", "per10k", "per100k"],
+      dotMetric: ["n", "share", "median", "pgpzh", "per1k", "per10k", "per100k"],
       dotLabels: ["outliers", "top", "off"]
     };
     const classKeys = new Set(["pyramidClass", "plotClass", "mapClass", "dotClass"]);
@@ -496,7 +496,7 @@
           chart.appendChild(point);
           const anchor = scale(value.value) > width - right - 65 ? "end" : "start";
           textNode(chart, scale(value.value) + (anchor === "end" ? -10 : 10), y + 4, formatDotValue(value.value), "dot-value-label", anchor);
-          addTip(point, `<b>${esc(definition.name)}</b><div class="tip-grid"><span>${territoryMetricLabel(state.dotMetric)}</span><strong>${formatDotValue(value.value)}</strong><span>Население ${DATA.populationYear}</span><strong>${populationValue(definition) ? fmt(populationValue(definition)) : "н/д"}</strong><span>Всего смертей</span><strong>${fmt(value.total)}</strong><span>Выбранная причина</span><strong>${fmt(value.selected)}</strong><span>Структура</span><strong>${esc(topClasses(value))}</strong></div>`);
+          addTip(point, `<b>${esc(definition.name)}</b><div class="tip-grid"><span>${territoryMetricLabel(state.dotMetric)}</span><strong>${formatDotValue(value.value)}</strong>${rateBase(state.dotMetric) ? `<span>Расчёт</span><strong>${rateFormula(value.selected, definition, state.dotMetric)}</strong>` : ""}<span>Население ${DATA.populationYear}</span><strong>${populationValue(definition) ? fmt(populationValue(definition)) : "н/д"}</strong><span>Всего смертей</span><strong>${fmt(value.total)}</strong><span>Выбранная причина</span><strong>${fmt(value.selected)}</strong><span>Структура</span><strong>${esc(topClasses(value))}</strong></div>`);
         });
         document.getElementById("viz").innerHTML = "";
         document.getElementById("viz").appendChild(chart);
@@ -528,7 +528,7 @@
           const point = svg("circle", { cx: x, cy: y, r: 5.5, fill: dotColor(value), opacity: .82, stroke: "#fff", "stroke-width": 1.2 });
           chart.appendChild(point);
           points.push({ x, y, label: definition.name, value: value.value, source: value });
-          addTip(point, `<b>${esc(definition.name)}</b><div class="tip-grid"><span>Муниципалитет</span><strong>${esc(definition.municipality)}</strong><span>${territoryMetricLabel(state.dotMetric)}</span><strong>${formatDotValue(value.value)}</strong><span>Население ${DATA.populationYear}</span><strong>${populationValue(definition) ? fmt(populationValue(definition)) : "н/д"}</strong><span>Всего смертей</span><strong>${fmt(value.total)}</strong><span>Выбранная причина</span><strong>${fmt(value.selected)}</strong><span>Структура</span><strong>${esc(topClasses(value))}</strong></div>`);
+          addTip(point, `<b>${esc(definition.name)}</b><div class="tip-grid"><span>Муниципалитет</span><strong>${esc(definition.municipality)}</strong><span>${territoryMetricLabel(state.dotMetric)}</span><strong>${formatDotValue(value.value)}</strong>${rateBase(state.dotMetric) ? `<span>Расчёт</span><strong>${rateFormula(value.selected, definition, state.dotMetric)}</strong>` : ""}<span>Население ${DATA.populationYear}</span><strong>${populationValue(definition) ? fmt(populationValue(definition)) : "н/д"}</strong><span>Всего смертей</span><strong>${fmt(value.total)}</strong><span>Выбранная причина</span><strong>${fmt(value.selected)}</strong><span>Структура</span><strong>${esc(topClasses(value))}</strong></div>`);
         });
         let labelled = [];
         if (state.dotLabels === "top") labelled = [...points].sort((left, right) => right.value - left.value).slice(0, 10);
@@ -546,7 +546,7 @@
         document.getElementById("viz").insertAdjacentHTML("beforeend", `<div class="chart-note">Каждая строка — муниципальная территория, каждая точка — НП. ${state.dotLabels === "outliers" ? "Подписаны выбросы по правилу Q3 + 1,5×IQR и несколько крупнейших значений." : state.dotLabels === "top" ? "Подписаны десять крупнейших значений." : "Подписи точек отключены."} Вертикальный пунктир — медиана.</div>`);
       }
       delete window.__dotValuesForAxis;
-      document.getElementById("methodText").textContent = `Dotogram показывает территориальный контекст: НП сгруппированы по муниципалитетам, а муниципалитеты отображаются ранжированным точечным графиком. Подписи выделяют только статистически необычные или крупнейшие значения.${rateBase(state.dotMetric) ? ` Показатель рассчитан как смерти в текущем фильтре / население ${DATA.populationYear} × ${state.dotMetric === "per10k" ? "10 000" : "100 000"}; для многолетнего фильтра он накопительный.` : state.dotMetric === "n" || state.dotMetric === "pgpzh" ? " Для абсолютных значений применяется корневая шкала, чтобы крупнейший центр не сжимал остальные территории у нуля." : ""}`;
+      document.getElementById("methodText").textContent = `Dotogram показывает территориальный контекст: НП сгруппированы по муниципалитетам, а муниципалитеты отображаются ранжированным точечным графиком. Подписи выделяют только статистически необычные или крупнейшие значения.${rateBase(state.dotMetric) ? ` Показатель рассчитан как смерти в текущем фильтре / (население ${DATA.populationYear} × ${rateYearsLabel()}) × ${fmt(rateBase(state.dotMetric))}; результат приведён к среднему за один год.${state.sex !== "all" || state.age !== "all" ? " Знаменатель — общая численность населения, а не выбранная половозрастная группа." : ""}` : state.dotMetric === "n" || state.dotMetric === "pgpzh" ? " Для абсолютных значений применяется корневая шкала, чтобы крупнейший центр не сжимал остальные территории у нуля." : ""}`;
     };
 
     const appendMapCenterLabels = (mapSvg) => {

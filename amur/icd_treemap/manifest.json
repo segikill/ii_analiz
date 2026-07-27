@@ -1,6 +1,6 @@
 {
   "report": "index.html",
-  "html_bytes": 1241245,
+  "html_bytes": 1243961,
   "records": 32942,
   "visualizations": [
     "treemap",
@@ -76,8 +76,8 @@
     "population_municipality_method": "sum of settlement populations by municipality",
     "population_settlement_death_records_eligible": 29805,
     "population_settlement_death_records_without_positive_denominator": 25,
-    "population_rate_formula": "filtered deaths / population_2021 * 10,000 or 100,000; cumulative for multi-year filters",
-    "generated_at": "2026-07-17T18:15:55",
+    "population_rate_formula": "filtered deaths / (population_2021 * selected calendar years) * 1,000, 10,000 or 100,000; annual average for multi-year filters",
+    "generated_at": "2026-07-27T12:12:02",
     "privacy": "Only anonymized analytical dimensions are embedded; death record IDs, addresses and names are excluded."
   }
 }
