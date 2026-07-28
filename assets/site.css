@@ -422,6 +422,11 @@ svg .site-atlas-highlight {
 
 .site-map-marker {
   cursor: pointer;
+  opacity: .86;
+}
+
+.site-map-marker.site-atlas-highlight {
+  opacity: 1;
 }
 
 .site-map-hit {
@@ -436,11 +441,6 @@ svg .site-atlas-highlight {
 
 .site-map-label-layer.is-moving {
   opacity: 0;
-}
-
-.site-map-marker-casing {
-  fill-opacity: .56;
-  stroke-opacity: .56;
 }
 
 .map-center-label {

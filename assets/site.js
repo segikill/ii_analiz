@@ -1076,15 +1076,6 @@
         });
         const halo = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#f4b400", display: "none", class: "site-map-selection-wave", "pointer-events": "none" });
         group.appendChild(halo);
-        const casing = svg("circle", {
-          cx: x,
-          cy: y,
-          fill: visual.ring ? "none" : "#fff",
-          stroke: visual.ring ? "#fff" : "none",
-          class: "site-map-marker-casing",
-          "pointer-events": "none"
-        });
-        group.appendChild(casing);
         let main, outer, inner;
         if (visual.ring) {
           main = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#61758a", "pointer-events": "none" });
@@ -1100,7 +1091,7 @@
         const hit = svg("circle", { cx: x, cy: y, fill: "transparent", stroke: "none", class: "site-map-hit" });
         group.appendChild(hit);
         markerLayer.appendChild(group);
-        markerEntries[index] = { group, casing, main, outer, inner, halo, hit, visual, definition, x, y, index };
+        markerEntries[index] = { group, main, outer, inner, halo, hit, visual, definition, x, y, index };
       });
       mapSvg.append(polygonLayer, markerLayer, labelLayer);
       stage.appendChild(mapSvg);
@@ -1266,7 +1257,6 @@
         const displayScale = markerScreenScale(entry.visual);
         const outerRadius = entry.visual.diameter / 2;
         const ringWidth = entry.visual.ring;
-        const casingPad = 1.8;
         const haloRadius = outerRadius + 3.5;
         entry.group.dataset.screenScale = displayScale.toFixed(3);
         entry.group.dataset.screenDiameter = (outerRadius * 2 * displayScale).toFixed(2);
@@ -1276,18 +1266,15 @@
           entry.hit.setAttribute("r", Math.max(8, outerRadius + 2));
           if (entry.visual.ring) {
             const innerRadius = outerRadius - ringWidth;
-            entry.casing.setAttribute("r", outerRadius - ringWidth / 2);
-            entry.casing.setAttribute("stroke-width", ringWidth + casingPad * 2);
             entry.main.setAttribute("r", outerRadius - ringWidth / 2);
             entry.main.setAttribute("stroke-width", ringWidth);
             entry.outer.setAttribute("r", outerRadius);
-            entry.outer.setAttribute("stroke-width", 1);
+            entry.outer.setAttribute("stroke-width", .7);
             entry.inner.setAttribute("r", innerRadius);
-            entry.inner.setAttribute("stroke-width", 1);
+            entry.inner.setAttribute("stroke-width", .7);
           } else {
-            entry.casing.setAttribute("r", outerRadius + casingPad);
             entry.main.setAttribute("r", outerRadius);
-            entry.main.setAttribute("stroke-width", 1);
+            entry.main.setAttribute("stroke-width", .7);
             if (entry.visual.missing) entry.main.setAttribute("stroke-dasharray", "2 1.5");
           }
           entry.baseSizeReady = true;
