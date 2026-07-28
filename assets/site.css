@@ -1308,9 +1308,13 @@ body.site-has-shell:has(.atlas-main) {
 }
 
 .atlas-main .viz[data-view="heatmap"] .heat-head {
-  min-height: 62px;
+  min-height: 84px;
   padding: 2px;
-  font-size: 8px;
+  font-family: Arial, "Helvetica Neue", sans-serif;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: .015em;
+  line-height: 1.05;
 }
 
 .atlas-main .viz[data-view="heatmap"] .heat-rowlabel {
@@ -1994,7 +1998,11 @@ body.site-observatory .atlas-main input:focus {
   font-weight: 800;
 }
 
-body.site-observatory .atlas-main .viz[data-view="heatmap"] .heat-head,
+body.site-observatory .atlas-main .viz[data-view="heatmap"] .heat-head {
+  font-size: 11px;
+  font-weight: 700;
+}
+
 body.site-observatory .atlas-main .viz[data-view="heatmap"] .heat-cell {
   font-size: 8.7px;
 }
@@ -2022,7 +2030,10 @@ body.site-observatory .atlas-main .viz[data-view="dotogram"] .dot-label {
     font-size: 9px;
   }
 
-  body.site-observatory .atlas-main .viz[data-view="heatmap"] .heat-head,
+  body.site-observatory .atlas-main .viz[data-view="heatmap"] .heat-head {
+    font-size: 12px;
+  }
+
   body.site-observatory .atlas-main .viz[data-view="heatmap"] .heat-cell {
     font-size: 9.5px;
   }
