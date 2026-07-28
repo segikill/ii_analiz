@@ -103,6 +103,43 @@
     if (typeof state === "undefined" || typeof render !== "function" || typeof DATA === "undefined") return;
 
     const exportPrefix = DATA.regionKey || (page.match.includes("/amur/") ? "amur" : "sakhalin");
+    document.body.dataset.region = exportPrefix;
+    document.body.classList.add("site-observatory");
+    const motionQuery = new URLSearchParams(window.location.search).get("motion");
+    let storedMotion = "";
+    try {
+      storedMotion = window.localStorage.getItem("atlas-motion-mode") || "";
+    } catch {
+      storedMotion = "";
+    }
+    const systemReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    let motionMode = ["full", "reduced", "off"].includes(motionQuery)
+      ? motionQuery
+      : ["full", "reduced", "off"].includes(storedMotion)
+        ? storedMotion
+        : systemReducedMotion ? "reduced" : "full";
+    const motionDuration = () => motionMode === "full" ? 260 : motionMode === "reduced" ? 120 : 0;
+    const applyMotionMode = (mode, persist = true) => {
+      motionMode = ["full", "reduced", "off"].includes(mode) ? mode : "full";
+      document.documentElement.dataset.motionMode = motionMode;
+      if (persist) {
+        try {
+          window.localStorage.setItem("atlas-motion-mode", motionMode);
+        } catch {
+          /* localStorage can be unavailable for hardened local-file sessions */
+        }
+      }
+      const url = new URL(window.location.href);
+      if (motionMode === "full") url.searchParams.delete("motion");
+      else url.searchParams.set("motion", motionMode);
+      history.replaceState(null, "", url);
+      document.querySelectorAll(".atlas-motion-control [data-motion-mode]").forEach((button) => {
+        const active = button.dataset.motionMode === motionMode;
+        button.classList.toggle("active", active);
+        button.setAttribute("aria-pressed", String(active));
+      });
+    };
+    applyMotionMode(motionMode, false);
     if (state.treeColor === undefined || state.treeColor === "change") state.treeColor = "count";
     if (state.mapLabels === undefined || state.mapLabels === "key") state.mapLabels = "auto";
     if (state.mapPalette === undefined) state.mapPalette = "teal";
@@ -112,6 +149,75 @@
     if (state.dotLabels === undefined) state.dotLabels = "outliers";
 
     const defaults = { ...state };
+    const atlasWorkspace = document.getElementById("atlasWorkspace");
+    const atlasDrawer = document.getElementById("atlasDrawer");
+    const drawerTitle = document.getElementById("drawerTitle");
+    const drawerToggle = document.getElementById("drawerToggle");
+    const drawerRailToggle = document.getElementById("drawerRailToggle");
+    const atlasHelpToggle = document.getElementById("atlasHelpToggle");
+    const methodPanel = document.querySelector(".atlas-main .method");
+    let drawerOpen = true;
+    let drawerResizeTimer = 0;
+
+    const setDrawerOpen = (open) => {
+      drawerOpen = Boolean(open);
+      atlasWorkspace?.classList.toggle("drawer-collapsed", !drawerOpen);
+      atlasDrawer?.setAttribute("aria-hidden", String(!drawerOpen));
+      if (atlasDrawer) atlasDrawer.inert = !drawerOpen;
+      [drawerToggle, drawerRailToggle].forEach((button) => {
+        if (!button) return;
+        button.setAttribute("aria-expanded", String(drawerOpen));
+      });
+      if (drawerToggle) {
+        drawerToggle.textContent = "«";
+        drawerToggle.title = "Свернуть панель";
+        drawerToggle.setAttribute("aria-label", "Свернуть панель");
+      }
+      if (drawerRailToggle) {
+        const glyph = drawerRailToggle.querySelector("span");
+        if (glyph) glyph.textContent = drawerOpen ? "«" : "»";
+        drawerRailToggle.title = drawerOpen ? "Свернуть панель параметров" : "Открыть панель параметров";
+      }
+      requestAnimationFrame(() => {
+        window.dispatchEvent(new Event("resize"));
+      });
+      window.clearTimeout(drawerResizeTimer);
+      drawerResizeTimer = window.setTimeout(() => {
+        window.dispatchEvent(new Event("resize"));
+      }, 260);
+    };
+
+    const closeMethodPanel = () => {
+      methodPanel?.classList.remove("is-open");
+      atlasHelpToggle?.setAttribute("aria-expanded", "false");
+    };
+
+    const toggleMethodPanel = () => {
+      if (!methodPanel) return;
+      const open = !methodPanel.classList.contains("is-open");
+      methodPanel.classList.toggle("is-open", open);
+      atlasHelpToggle?.setAttribute("aria-expanded", String(open));
+    };
+
+    if (methodPanel && !methodPanel.querySelector(".method-close")) {
+      const close = document.createElement("button");
+      close.type = "button";
+      close.className = "method-close";
+      close.textContent = "×";
+      close.title = "Закрыть методику";
+      close.setAttribute("aria-label", "Закрыть методику");
+      close.addEventListener("click", closeMethodPanel);
+      methodPanel.prepend(close);
+    }
+    drawerToggle?.addEventListener("click", () => setDrawerOpen(false));
+    drawerRailToggle?.addEventListener("click", () => setDrawerOpen(!drawerOpen));
+    atlasHelpToggle?.setAttribute("aria-expanded", "false");
+    atlasHelpToggle?.addEventListener("click", toggleMethodPanel);
+    window.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") closeMethodPanel();
+    });
+    setDrawerOpen(true);
+
     const enumValues = {
       view: ["treemap", "heatmap", "arrow", "pyramid", "plot", "map", "dotogram"],
       sex: ["all", "1", "2"],
@@ -152,16 +258,92 @@
       return value;
     };
     const filterStateKey = () => `${state.year}|${state.sex}|${state.age}`;
+    const filterOptionsKey = (options = {}) => {
+      const years = Array.isArray(options.years) ? options.years.join(",") : "";
+      return `${filterStateKey()}|years:${years}|ignoreYear:${options.ignoreYear ? 1 : 0}|ignoreSex:${options.ignoreSex ? 1 : 0}`;
+    };
     filtered = (options = {}) => {
-      if (Object.keys(options).length) return originalFiltered(options);
-      const key = filterStateKey();
+      const key = filterOptionsKey(options);
       if (filteredCache.has(key)) return filteredCache.get(key);
       const started = performance.now();
-      const result = originalFiltered();
+      const result = originalFiltered(options);
       mapPerformance.filterMiss = true;
       mapPerformance.filterMs = performance.now() - started;
-      return cachePut(filteredCache, key, result, 12);
+      return cachePut(filteredCache, key, result, 48);
     };
+    const optimizedTreeItems = () => {
+      const rows = filtered();
+      const definitions = state.treeType === "root"
+        ? DATA.classes.map((definition, index) => ({
+            i: index,
+            code: definition.roman,
+            label: definition.short,
+            color: definition.color,
+            next: "class"
+          }))
+        : state.treeType === "class"
+          ? DATA.blocks
+              .map((definition, index) => ({ definition, index }))
+              .filter(({ definition }) => definition.class === state.treeIndex)
+              .map(({ definition, index }) => ({
+                i: index,
+                code: definition.code,
+                label: definition.label,
+                color: DATA.classes[definition.class].color,
+                next: "block"
+              }))
+          : DATA.codes
+              .map((definition, index) => ({ definition, index }))
+              .filter(({ definition }) => definition.block === state.treeIndex)
+              .map(({ definition, index }) => ({
+                i: index,
+                code: definition.code,
+                label: definition.label,
+                color: DATA.classes[definition.class].color,
+                next: "code"
+              }));
+      const itemIndex = (row) => state.treeType === "root"
+        ? classOf(row)
+        : state.treeType === "class" ? blockOf(row) : row[3];
+      const current = new Map(definitions.map((definition) => [definition.i, { ...definition, rows: [] }]));
+      rows.forEach((row) => {
+        const entry = current.get(itemIndex(row));
+        if (entry) entry.rows.push(row);
+      });
+      const minimumYear = Math.min(...DATA.years);
+      const periodYears = state.year === "all"
+        ? DATA.years.length <= 3
+          ? [[DATA.years[0]], [DATA.years[DATA.years.length - 1]]]
+          : [DATA.years.slice(0, Math.floor(DATA.years.length / 2)), DATA.years.slice(Math.floor(DATA.years.length / 2))]
+        : [[Math.max(minimumYear, +state.year - 1)], [+state.year]];
+      const periodAggregates = periodYears.map((years) => {
+        const aggregate = new Map(definitions.map((definition) => [definition.i, { n: 0, pgpzh: 0 }]));
+        filtered({ years, ignoreYear: true }).forEach((row) => {
+          const entry = aggregate.get(itemIndex(row));
+          if (!entry) return;
+          entry.n += 1;
+          if (row[2] >= 0) entry.pgpzh += Math.max(75 - row[2], 0);
+        });
+        return { aggregate, years: years.length };
+      });
+      const total = rows.length;
+      return [...current.values()]
+        .filter((entry) => entry.rows.length)
+        .map((entry) => {
+          const summary = stats(entry.rows);
+          const values = periodAggregates.map(({ aggregate, years }) => {
+            const value = aggregate.get(entry.i) || { n: 0, pgpzh: 0 };
+            return (state.treeMetric === "pgpzh" ? value.pgpzh : value.n) / years;
+          });
+          const change = values[0] > 0 ? (values[1] - values[0]) / values[0] * 100 : null;
+          const value = state.treeMetric === "pgpzh"
+            ? summary.pgpzh
+            : state.treeMetric === "share" ? summary.n / Math.max(total, 1) * 100 : summary.n;
+          return { ...entry, ...summary, value, change };
+        })
+        .sort((left, right) => right.value - left.value);
+    };
+    treeItems = optimizedTreeItems;
     geoValues = (unit, classKey) => {
       const key = `${filterStateKey()}|${unit}`;
       let aggregate = geoAggregateCache.get(key);
@@ -487,8 +669,16 @@
         ? value.split("").map((part) => parseInt(part + part, 16))
         : [0, 2, 4].map((offset) => parseInt(value.slice(offset, offset + 2), 16));
       const intensity = Math.sqrt(Math.max(0, Math.min(1, ratio || 0)));
-      const white = 0.38 - intensity * 0.24;
-      const muted = source.map((channel) => Math.round(channel * (1 - white) + 242 * white));
+      /*
+       * White labels are an approved part of the atlas. Mixing each class hue
+       * with a graphite base preserves a quiet pastel-like palette while keeping
+       * even yellow and orange classes readable.
+       */
+      const graphite = [28, 45, 68];
+      const colorWeight = .38 + intensity * .2;
+      const muted = source.map((channel, index) =>
+        Math.round(channel * colorWeight + graphite[index] * (1 - colorWeight))
+      );
       return `rgb(${muted.join(",")})`;
     };
 
@@ -508,6 +698,27 @@
       if (state.treeColor === "count") {
         document.getElementById("methodText").textContent = "Площадь показывает выбранный показатель, а насыщенность пастельного цвета — число смертей внутри текущего уровня. Чем темнее плитка, тем больше наблюдений.";
       }
+    };
+
+    const enhanceHeatmapContrast = () => {
+      if (state.view !== "heatmap") return;
+      const luminance = (channels) => channels
+        .map((channel) => {
+          const value = channel / 255;
+          return value <= .03928 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+        })
+        .reduce((sum, value, index) => sum + value * [.2126, .7152, .0722][index], 0);
+      document.querySelectorAll(".heat-cell").forEach((cell) => {
+        const channels = getComputedStyle(cell).backgroundColor.match(/[\d.]+/g)?.slice(0, 3).map(Number);
+        if (!channels || channels.length !== 3) return;
+        const background = luminance(channels);
+        const whiteContrast = 1.05 / (background + .05);
+        const inkLuminance = 0;
+        const inkContrast = (Math.max(background, inkLuminance) + .05) / (Math.min(background, inkLuminance) + .05);
+        cell.style.color = whiteContrast >= inkContrast ? "#ffffff" : "#000000";
+        if (whiteContrast >= inkContrast) cell.style.textShadow = "0 1px 2px rgba(0,0,0,.28)";
+        else cell.style.textShadow = "none";
+      });
     };
 
     const enhanceMapPaletteLegend = () => {
@@ -545,6 +756,12 @@
       const classificationSource = state.mapUnit === "settlement" ? "по НП" : "по муниципалитетам";
       breaks.insertAdjacentHTML("beforeend", `<div class="site-map-break-actions"><span>${manual ? "границы настроены вручную" : `автоматические интервалы Дженкса · ${classificationSource}`}</span><button type="button" id="mapBreaksReset"${manual ? "" : " disabled"}>Сбросить в авто</button></div>`);
       caption.insertAdjacentElement("afterend", breaks);
+      if (motionDuration() && typeof breaks.animate === "function") {
+        breaks.animate(
+          [{ opacity: .45, transform: "translateX(4px)" }, { opacity: 1, transform: "translateX(0)" }],
+          { duration: Math.min(motionDuration(), 210), easing: "ease-out" }
+        );
+      }
       const inputs = [...breaks.querySelectorAll(".site-map-break-input")];
       const applyBreaks = () => {
         const values = inputs.map((input) => Number(input.value));
@@ -637,6 +854,9 @@
 
     const enhanceDotogram = () => {
       if (state.view !== "dotogram") return;
+      const viz = document.getElementById("viz");
+      const availableWidth = Math.max(760, Math.round(viz.clientWidth - 2));
+      const availableHeight = Math.max(360, Math.round(viz.clientHeight - 36));
       const { defs, map } = geoValues(state.dotUnit, state.dotClass);
       const values = [...map.values()].map((value) => ({ ...value, value: dotMetricValue(value, defs[value.idx]) })).filter((value) => value.value != null && Number.isFinite(value.value));
       if (!values.length) {
@@ -656,8 +876,10 @@
 
       if (state.dotUnit === "mo") {
         values.sort((left, right) => right.value - left.value);
-        const width = 1080, rowHeight = 27, top = 35, bottom = 50, left = 250, right = 80;
-        const height = Math.max(560, values.length * rowHeight + top + bottom);
+        const width = availableWidth, top = 30, bottom = 42;
+        const left = Math.max(205, Math.min(270, width * .23)), right = Math.max(62, width * .065);
+        const height = availableHeight;
+        const rowHeight = Math.max(8.5, (height - top - bottom) / Math.max(values.length, 1));
         const scale = (value) => left + scaleFraction(value) * (width - left - right);
         const chart = svg("svg", { viewBox: `0 0 ${width} ${height}`, class: "svg-chart dotogram-ranked" });
         drawDotAxis(chart, scale, domainMin, domainMax, width, height, left, top, bottom);
@@ -684,8 +906,10 @@
         });
         const groups = [...groupTotals].sort((left, right) => right[1] - left[1]).map(([index]) => index);
         const groupPosition = new Map(groups.map((index, position) => [index, position]));
-        const width = 1120, rowHeight = 28, top = 45, bottom = 58, left = 190, right = 165;
-        const height = Math.max(670, groups.length * rowHeight + top + bottom);
+        const width = availableWidth, top = 34, bottom = 46;
+        const left = Math.max(170, Math.min(230, width * .19)), right = Math.max(130, Math.min(180, width * .15));
+        const height = availableHeight;
+        const rowHeight = Math.max(8.5, (height - top - bottom) / Math.max(groups.length, 1));
         const scale = (value) => left + scaleFraction(value) * (width - left - right);
         const chart = svg("svg", { viewBox: `0 0 ${width} ${height}`, class: "svg-chart dotogram-groups" });
         drawDotAxis(chart, scale, domainMin, domainMax, width, height, left, top, bottom);
@@ -729,6 +953,7 @@
     let mapRuntime = null;
     let labelTimer = 0;
     let viewportFrame = 0;
+    let mapTooltipKey = "";
     let selectedMapObject = null;
     const centerByMunicipality = new Map();
     DATA.settlements.forEach((definition, index) => {
@@ -784,22 +1009,25 @@
           <span class="city">Город</span>
           <span class="settlement">Остальные НП</span>
         </div>
-        <p>Города — полужирный шрифт 15 px. Остальные НП — обычный шрифт 10–11 px в зависимости от масштаба.</p>
+        <p>Размер адаптируется к окну карты: города 15–18 px, остальные НП 10–13 px. При зуме подписи не раздуваются.</p>
       </div>`;
 
     const municipalityLabelLegendHtml = () => `
       <div class="site-settlement-label-legend">
         <b>Подписи · ключевые города</b>
         <div><span class="city">● Городской центр</span></div>
-        <p>Опорные точки и названия городов сохраняются поверх муниципальных полигонов; размер подписей — 15 px.</p>
+        <p>Опорные точки и названия городов сохраняются поверх полигонов; размер 15–18 px адаптируется к окну карты.</p>
       </div>`;
 
     const syncMapPanelHeight = () => {
       if (!mapRuntime?.root?.isConnected) return;
-      const height = Math.round(mapRuntime.svg.getBoundingClientRect().height);
-      if (!height) return;
-      mapRuntime.side.style.height = `${height}px`;
-      mapRuntime.side.style.maxHeight = `${height}px`;
+      /*
+       * The map and side panel are grid siblings. Let grid stretching keep their
+       * outer boxes identical; copying a rounded SVG height back into the panel
+       * created a 3–4 px feedback error on some 16:9 viewports.
+       */
+      mapRuntime.side.style.removeProperty("height");
+      mapRuntime.side.style.removeProperty("max-height");
     };
 
     const createMapRuntime = () => {
@@ -846,8 +1074,17 @@
           role: "button",
           tabindex: "0"
         });
-        const halo = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#f4b400", display: "none", "pointer-events": "none" });
+        const halo = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#f4b400", display: "none", class: "site-map-selection-wave", "pointer-events": "none" });
         group.appendChild(halo);
+        const casing = svg("circle", {
+          cx: x,
+          cy: y,
+          fill: visual.ring ? "none" : "#fff",
+          stroke: visual.ring ? "#fff" : "none",
+          class: "site-map-marker-casing",
+          "pointer-events": "none"
+        });
+        group.appendChild(casing);
         let main, outer, inner;
         if (visual.ring) {
           main = svg("circle", { cx: x, cy: y, fill: "none", stroke: "#61758a", "pointer-events": "none" });
@@ -859,10 +1096,11 @@
           if (visual.missing) main.setAttribute("stroke-dasharray", "2 1.5");
           group.appendChild(main);
         }
+        main.classList.add("site-map-marker-main");
         const hit = svg("circle", { cx: x, cy: y, fill: "transparent", stroke: "none", class: "site-map-hit" });
         group.appendChild(hit);
         markerLayer.appendChild(group);
-        markerEntries[index] = { group, main, outer, inner, halo, hit, visual, definition, x, y, index };
+        markerEntries[index] = { group, casing, main, outer, inner, halo, hit, visual, definition, x, y, index };
       });
       mapSvg.append(polygonLayer, markerLayer, labelLayer);
       stage.appendChild(mapSvg);
@@ -873,20 +1111,25 @@
       stage.appendChild(controls);
       const side = document.createElement("aside");
       side.className = "map-side";
-      side.innerHTML = '<div class="map-legend"></div><h3>Наибольшие значения</h3><div class="rank-list"></div>';
+      side.innerHTML = '<div class="map-legend"></div><section class="site-map-selection-card" hidden></section><h3>Наибольшие значения</h3><div class="rank-list"></div>';
       root.append(stage, side);
       els.viz.innerHTML = "";
       els.viz.appendChild(root);
       mapRuntime = {
         root, stage, svg: mapSvg, controls, side,
         legend: side.querySelector(".map-legend"),
+        selection: side.querySelector(".site-map-selection-card"),
         rank: side.querySelector(".rank-list"),
         polygonLayer, markerLayer, labelLayer, polygonEntries, markerEntries,
         defs: [], values: new Map(), unit: null, context: null, lastUpdateMs: 0,
         drag: null, dragMoved: false, panelResizeObserver: null
       };
       if (typeof ResizeObserver !== "undefined") {
-        mapRuntime.panelResizeObserver = new ResizeObserver(() => syncMapPanelHeight());
+        mapRuntime.panelResizeObserver = new ResizeObserver(() => {
+          syncMapPanelHeight();
+          syncMapSymbolSizes();
+          scheduleMapLabels(20);
+        });
         mapRuntime.panelResizeObserver.observe(mapSvg);
       }
       requestAnimationFrame(syncMapPanelHeight);
@@ -902,8 +1145,9 @@
         if (event.target.closest("select")) return;
         event.preventDefault();
         const bounds = mapSvg.getBoundingClientRect();
-        const centerX = mapViewport[0] + (event.clientX - bounds.left) / bounds.width * mapViewport[2];
-        const centerY = mapViewport[1] + (event.clientY - bounds.top) / bounds.height * mapViewport[3];
+        const metrics = mapRenderMetrics();
+        const centerX = mapViewport[0] + (event.clientX - bounds.left - metrics.offsetX) / metrics.scale;
+        const centerY = mapViewport[1] + (event.clientY - bounds.top - metrics.offsetY) / metrics.scale;
         zoomMap(event.deltaY > 0 ? 1.16 : 0.86, centerX, centerY);
       }, { passive: false });
       mapSvg.addEventListener("pointerdown", (event) => {
@@ -918,12 +1162,15 @@
         if (!mapRuntime.drag) {
           const target = event.target.closest("[data-map-kind]");
           if (target) showMapTooltip(event, target);
-          else hideTip();
+          else {
+            mapTooltipKey = "";
+            hideTip();
+          }
           return;
         }
-        const bounds = mapSvg.getBoundingClientRect();
-        const dx = (event.clientX - mapRuntime.drag.x) / bounds.width * mapRuntime.drag.view[2];
-        const dy = (event.clientY - mapRuntime.drag.y) / bounds.height * mapRuntime.drag.view[3];
+        const metrics = mapRenderMetrics();
+        const dx = (event.clientX - mapRuntime.drag.x) / metrics.scale;
+        const dy = (event.clientY - mapRuntime.drag.y) / metrics.scale;
         if (Math.abs(dx) + Math.abs(dy) > 1) mapRuntime.drag.moved = true;
         mapViewport = [mapRuntime.drag.view[0] - dx, mapRuntime.drag.view[1] - dy, mapRuntime.drag.view[2], mapRuntime.drag.view[3]];
         applyMapViewport();
@@ -937,7 +1184,10 @@
       mapSvg.addEventListener("pointerup", finishDrag);
       mapSvg.addEventListener("pointercancel", finishDrag);
       mapSvg.addEventListener("pointerleave", (event) => {
-        if (!mapRuntime.drag) hideTip();
+        if (!mapRuntime.drag) {
+          mapTooltipKey = "";
+          hideTip();
+        }
       });
       mapSvg.addEventListener("click", (event) => {
         if (mapRuntime.dragMoved) {
@@ -975,33 +1225,78 @@
       ];
     };
 
-    const mapUserUnitsPerPixel = () => {
-      const width = mapRuntime?.svg.getBoundingClientRect().width || MAP_WIDTH;
-      return mapViewport[2] / Math.max(width, 1);
+    const mapRenderMetrics = () => {
+      const bounds = mapRuntime?.svg.getBoundingClientRect() || { width: MAP_WIDTH, height: MAP_HEIGHT };
+      const scale = Math.min(
+        bounds.width / Math.max(mapViewport[2], 1),
+        bounds.height / Math.max(mapViewport[3], 1)
+      );
+      const contentWidth = mapViewport[2] * scale;
+      const contentHeight = mapViewport[3] * scale;
+      return {
+        bounds,
+        scale,
+        unit: 1 / Math.max(scale, .0001),
+        contentWidth,
+        contentHeight,
+        offsetX: (bounds.width - contentWidth) / 2,
+        offsetY: (bounds.height - contentHeight) / 2
+      };
     };
+
+    const mapUserUnitsPerPixel = () => mapRenderMetrics().unit;
+
+    const mapCanvasProgress = () => {
+      const width = mapRuntime?.svg.getBoundingClientRect().width || 800;
+      return Math.max(0, Math.min(1, (width - 800) / 1050));
+    };
+
+    const markerScreenScale = (visual) => {
+      const gain = mapCanvasProgress() * .35;
+      const damping = visual.diameter >= 42 ? .55 : visual.diameter >= 26 ? .8 : 1;
+      return 1 + gain * damping;
+    };
+
+    const labelScreenScale = () => 1 + mapCanvasProgress() * .2;
 
     const syncMapSymbolSizes = () => {
       if (!mapRuntime) return;
       const unit = mapUserUnitsPerPixel();
       mapRuntime.markerEntries.forEach((entry) => {
+        const displayScale = markerScreenScale(entry.visual);
         const outerRadius = entry.visual.diameter / 2;
-        const haloRadius = outerRadius + 3;
-        entry.halo.setAttribute("r", haloRadius * unit);
-        entry.halo.setAttribute("stroke-width", 2.2 * unit);
-        entry.hit.setAttribute("r", Math.max(8, outerRadius + 2) * unit);
-        if (entry.visual.ring) {
-          const innerRadius = outerRadius - entry.visual.ring;
-          entry.main.setAttribute("r", (outerRadius - entry.visual.ring / 2) * unit);
-          entry.main.setAttribute("stroke-width", entry.visual.ring * unit);
-          entry.outer.setAttribute("r", outerRadius * unit);
-          entry.outer.setAttribute("stroke-width", 1.25 * unit);
-          entry.inner.setAttribute("r", innerRadius * unit);
-          entry.inner.setAttribute("stroke-width", 1.25 * unit);
-        } else {
-          entry.main.setAttribute("r", outerRadius * unit);
-          entry.main.setAttribute("stroke-width", 1.25 * unit);
-          if (entry.visual.missing) entry.main.setAttribute("stroke-dasharray", `${2 * unit} ${1.5 * unit}`);
+        const ringWidth = entry.visual.ring;
+        const casingPad = 1.8;
+        const haloRadius = outerRadius + 3.5;
+        entry.group.dataset.screenScale = displayScale.toFixed(3);
+        entry.group.dataset.screenDiameter = (outerRadius * 2 * displayScale).toFixed(2);
+        if (!entry.baseSizeReady) {
+          entry.halo.setAttribute("r", haloRadius);
+          entry.halo.setAttribute("stroke-width", 2.2);
+          entry.hit.setAttribute("r", Math.max(8, outerRadius + 2));
+          if (entry.visual.ring) {
+            const innerRadius = outerRadius - ringWidth;
+            entry.casing.setAttribute("r", outerRadius - ringWidth / 2);
+            entry.casing.setAttribute("stroke-width", ringWidth + casingPad * 2);
+            entry.main.setAttribute("r", outerRadius - ringWidth / 2);
+            entry.main.setAttribute("stroke-width", ringWidth);
+            entry.outer.setAttribute("r", outerRadius);
+            entry.outer.setAttribute("stroke-width", 1);
+            entry.inner.setAttribute("r", innerRadius);
+            entry.inner.setAttribute("stroke-width", 1);
+          } else {
+            entry.casing.setAttribute("r", outerRadius + casingPad);
+            entry.main.setAttribute("r", outerRadius);
+            entry.main.setAttribute("stroke-width", 1);
+            if (entry.visual.missing) entry.main.setAttribute("stroke-dasharray", "2 1.5");
+          }
+          entry.baseSizeReady = true;
         }
+        const markerScale = unit * displayScale;
+        entry.group.setAttribute(
+          "transform",
+          `translate(${entry.x} ${entry.y}) scale(${markerScale}) translate(${-entry.x} ${-entry.y})`
+        );
       });
       const zoom = MAP_WIDTH / mapViewport[2];
       const output = mapRuntime.controls.querySelector("[data-map-zoom-level]");
@@ -1047,8 +1342,9 @@
 
     const labelFontSize = (definition, zoom) => {
       const zoomProgress = Math.log2(Math.max(1, Math.min(10, zoom))) / Math.log2(10);
-      if (definition.isCity) return 15;
-      return 10 + zoomProgress;
+      const screenScale = labelScreenScale();
+      if (definition.isCity) return 15 * screenScale;
+      return (10 + zoomProgress) * screenScale;
     };
 
     const renderMapLabels = () => {
@@ -1061,6 +1357,7 @@
       if (state.mapLabels === "off") return;
       const bounds = mapRuntime.svg.getBoundingClientRect();
       if (!bounds.width || !bounds.height) return;
+      const renderMetrics = mapRenderMetrics();
       const zoom = MAP_WIDTH / mapViewport[2];
       const threshold = labelPopulationThreshold(zoom);
       const selectedIndex = settlementMode && selectedMapObject?.kind === "settlement" ? selectedMapObject.index : -1;
@@ -1085,33 +1382,36 @@
           return (populationValue(right.definition) || 0) - (populationValue(left.definition) || 0);
         });
       const placed = [];
-      const unit = mapUserUnitsPerPixel();
+      const unit = renderMetrics.unit;
       const toScreen = (x, y) => [
-        (x - mapViewport[0]) / mapViewport[2] * bounds.width,
-        (y - mapViewport[1]) / mapViewport[3] * bounds.height
+        renderMetrics.offsetX + (x - mapViewport[0]) * renderMetrics.scale,
+        renderMetrics.offsetY + (y - mapViewport[1]) * renderMetrics.scale
       ];
       const toWorld = (x, y) => [
-        mapViewport[0] + x / bounds.width * mapViewport[2],
-        mapViewport[1] + y / bounds.height * mapViewport[3]
+        mapViewport[0] + (x - renderMetrics.offsetX) / renderMetrics.scale,
+        mapViewport[1] + (y - renderMetrics.offsetY) / renderMetrics.scale
       ];
       const markerObstacles = (settlementMode
         ? mapRuntime.markerEntries.filter((entry) => entry.group.style.display !== "none")
         : candidates)
         .map((entry) => {
           const [x, y] = toScreen(entry.x, entry.y);
-          const radius = settlementMode ? Math.max(3, entry.visual.diameter / 2) : 3.2;
+          const radius = settlementMode ? Math.max(3, entry.visual.diameter / 2 * markerScreenScale(entry.visual)) : 3.2;
           return { index: entry.index, x: x - radius, y: y - radius, w: radius * 2, h: radius * 2 };
         });
       candidates.forEach((entry) => {
         const [screenX, screenY] = toScreen(entry.x, entry.y);
-        if (screenX < -40 || screenX > bounds.width + 40 || screenY < -40 || screenY > bounds.height + 40) return;
+        const contentRight = renderMetrics.offsetX + renderMetrics.contentWidth;
+        const contentBottom = renderMetrics.offsetY + renderMetrics.contentHeight;
+        if (screenX < renderMetrics.offsetX - 40 || screenX > contentRight + 40
+          || screenY < renderMetrics.offsetY - 40 || screenY > contentBottom + 40) return;
         const isCity = Boolean(entry.definition.isCity);
         const font = labelFontSize(entry.definition, zoom);
         const label = entry.definition.name.length > 28 ? `${entry.definition.name.slice(0, 27)}…` : entry.definition.name;
         const widthFactor = isCity ? .6 : .54;
         const width = Math.max(isCity ? 48 : 38, label.length * font * widthFactor + 7);
         const height = font + 5;
-        const radius = settlementMode ? entry.visual.diameter / 2 : 3.2;
+        const radius = settlementMode ? entry.visual.diameter / 2 * markerScreenScale(entry.visual) : 3.2;
         const gap = radius + 6;
         const attempts = [
           [gap, -height / 2], [-gap - width, -height / 2],
@@ -1136,8 +1436,10 @@
         let box = null;
         for (const [dx, dy] of attempts) {
           const candidate = { x: screenX + dx, y: screenY + dy, w: width, h: height };
-          const inside = candidate.x >= 3 && candidate.x + candidate.w <= bounds.width - 3
-            && candidate.y >= 3 && candidate.y + candidate.h <= bounds.height - 3;
+          const inside = candidate.x >= renderMetrics.offsetX + 3
+            && candidate.x + candidate.w <= contentRight - 3
+            && candidate.y >= renderMetrics.offsetY + 3
+            && candidate.y + candidate.h <= contentBottom - 3;
           const overlaps = placed.some((other) => !(candidate.x + candidate.w + 4 < other.x
             || other.x + other.w + 4 < candidate.x
             || candidate.y + candidate.h + 3 < other.y
@@ -1154,8 +1456,8 @@
         }
         if (!box && entry.index === selectedIndex) {
           box = {
-            x: Math.max(3, Math.min(bounds.width - width - 3, screenX + gap)),
-            y: Math.max(3, Math.min(bounds.height - height - 3, screenY - height / 2)),
+            x: Math.max(renderMetrics.offsetX + 3, Math.min(contentRight - width - 3, screenX + gap)),
+            y: Math.max(renderMetrics.offsetY + 3, Math.min(contentBottom - height - 3, screenY - height / 2)),
             w: width,
             h: height
           };
@@ -1189,7 +1491,7 @@
         const [worldX, worldY] = toWorld(box.x + 3, box.y + font);
         const text = textNode(layer, worldX, worldY, label, `map-center-label ${isCity ? "city" : "settlement"}${entry.index === selectedIndex ? " selected" : ""}`, "start");
         text.setAttribute("font-size", font * unit);
-        text.setAttribute("stroke-width", 3.5 * unit);
+        text.setAttribute("stroke-width", 3.5 * labelScreenScale() * unit);
         text.setAttribute("paint-order", "stroke");
         text.setAttribute("data-label-kind", isCity ? "city" : "settlement");
         text.setAttribute("data-font-px", font.toFixed(2));
@@ -1211,10 +1513,54 @@
       scheduleMapLabels(0);
     };
 
+    let mapFlightFrame = 0;
+    const flyToMapObject = (kind, index) => {
+      if (!mapRuntime) return;
+      let centerX, centerY, nextWidth;
+      if (kind === "settlement") {
+        const entry = mapRuntime.markerEntries[index];
+        if (!entry) return;
+        centerX = entry.x;
+        centerY = entry.y;
+        nextWidth = Math.min(mapViewport[2], MAP_WIDTH / 2.55);
+      } else {
+        const entry = mapRuntime.polygonEntries[index];
+        if (!entry) return;
+        const bounds = entry.path.getBBox();
+        centerX = bounds.x + bounds.width / 2;
+        centerY = bounds.y + bounds.height / 2;
+        nextWidth = Math.min(
+          MAP_WIDTH,
+          Math.max(118, bounds.width * 1.3, bounds.height * MAP_WIDTH / MAP_HEIGHT * 1.3)
+        );
+      }
+      const nextHeight = nextWidth * MAP_HEIGHT / MAP_WIDTH;
+      const target = [centerX - nextWidth / 2, centerY - nextHeight / 2, nextWidth, nextHeight];
+      const start = [...mapViewport];
+      const duration = motionMode === "full" ? 430 : motionMode === "reduced" ? 180 : 0;
+      cancelAnimationFrame(mapFlightFrame);
+      if (!duration) {
+        mapViewport = target;
+        applyMapViewport();
+        return;
+      }
+      const started = performance.now();
+      const step = (now) => {
+        const progress = Math.min(1, (now - started) / duration);
+        const eased = 1 - (1 - progress) ** 3;
+        mapViewport = start.map((value, position) => value + (target[position] - value) * eased);
+        applyMapViewport();
+        if (progress < 1) mapFlightFrame = requestAnimationFrame(step);
+      };
+      mapFlightFrame = requestAnimationFrame(step);
+    };
+
     const selectMapObject = (kind, index) => {
       if ((kind === "mo" && state.mapUnit !== "mo") || (kind === "settlement" && state.mapUnit !== "settlement")) return;
       selectedMapObject = { kind, index };
       syncMapSelection();
+      renderMapSelectionCard();
+      flyToMapObject(kind, index);
       const definition = kind === "mo" ? DATA.municipalities[index] : DATA.settlements[index];
       setStatus(`Объект закреплён: ${definition?.name || "не указан"}`);
     };
@@ -1237,9 +1583,42 @@
       </div>`;
     };
 
+    const renderMapSelectionCard = () => {
+      if (!mapRuntime?.selection) return;
+      const selection = mapRuntime.selection;
+      const expectedKind = state.mapUnit === "mo" ? "mo" : "settlement";
+      if (!selectedMapObject || selectedMapObject.kind !== expectedKind) {
+        selection.hidden = true;
+        selection.innerHTML = "";
+        return;
+      }
+      const html = mapTooltipHtml(selectedMapObject.kind, selectedMapObject.index);
+      if (!html) {
+        selection.hidden = true;
+        return;
+      }
+      selection.hidden = false;
+      selection.innerHTML = `<button type="button" class="site-map-selection-close" aria-label="Закрыть карточку выбранного объекта">×</button><span class="site-map-selection-kicker">Закреплённый объект</span>${html}`;
+      selection.querySelector(".site-map-selection-close").onclick = () => {
+        selectedMapObject = null;
+        syncMapSelection();
+        renderMapSelectionCard();
+      };
+      if (motionDuration() && typeof selection.animate === "function") {
+        selection.animate(
+          [{ opacity: .25, transform: "translateX(8px)" }, { opacity: 1, transform: "translateX(0)" }],
+          { duration: Math.min(motionDuration(), 230), easing: "ease-out" }
+        );
+      }
+    };
+
     const showMapTooltip = (event, target) => {
+      const key = `${target.dataset.mapKind}:${target.dataset.index}`;
+      if (key === mapTooltipKey) return;
       const html = mapTooltipHtml(target.dataset.mapKind, +target.dataset.index);
-      if (html) showTip(event, html);
+      if (!html) return;
+      mapTooltipKey = key;
+      showTip(event, html);
     };
 
     const updateOptimizedMap = (context) => {
@@ -1309,6 +1688,7 @@
         <div class="legend-range"><span>${context.manualScale ? "шкала задана вручную" : "автомасштаб по фильтру · Дженкс"}</span><span>Web Mercator</span></div>`;
       syncMapSymbolSizes();
       syncMapSelection();
+      renderMapSelectionCard();
       applyMapViewport();
       requestAnimationFrame(syncMapPanelHeight);
       mapRuntime.lastUpdateMs = performance.now() - started;
@@ -1358,6 +1738,30 @@
         target.scrollIntoView({ block: "center", inline: "center" });
       }
     };
+
+    const motionControl = document.createElement("section");
+    motionControl.className = "atlas-motion-control";
+    motionControl.setAttribute("aria-label", "Интенсивность анимации интерфейса");
+    motionControl.innerHTML = `
+      <div class="atlas-motion-control__head">
+        <span>Движение интерфейса</span>
+        <small>плавность / скорость</small>
+      </div>
+      <div class="atlas-motion-control__buttons" role="group" aria-label="Режим анимации">
+        <button type="button" data-motion-mode="full">Полное</button>
+        <button type="button" data-motion-mode="reduced">Мягкое</button>
+        <button type="button" data-motion-mode="off">Выкл.</button>
+      </div>`;
+    const drawerNote = atlasDrawer?.querySelector(".drawer-scroll > .note");
+    if (drawerNote) drawerNote.insertAdjacentElement("beforebegin", motionControl);
+    else atlasDrawer?.querySelector(".drawer-scroll")?.appendChild(motionControl);
+    motionControl.querySelectorAll("[data-motion-mode]").forEach((button) => {
+      button.addEventListener("click", () => {
+        applyMotionMode(button.dataset.motionMode);
+        if (button.dataset.motionMode === "off") render();
+      });
+    });
+    applyMotionMode(motionMode, false);
 
     const actionBox = document.createElement("div");
     actionBox.innerHTML = `
@@ -1485,20 +1889,228 @@
       if (event.key === "Enter") activateSearch();
     });
 
+    const motionSelectors = {
+      treemap: ".tile",
+      heatmap: ".heat-cell",
+      arrow: "svg line:not(.gridline):not(.axis), svg circle",
+      pyramid: "svg rect",
+      plot: "svg line:not(.gridline):not(.axis), svg circle",
+      dotogram: "svg circle, svg line:not(.gridline):not(.axis)"
+    };
+    const changeNotice = document.createElement("div");
+    changeNotice.className = "atlas-change-notice";
+    changeNotice.setAttribute("role", "status");
+    changeNotice.setAttribute("aria-live", "polite");
+    document.querySelector(".atlas-main .chart-meta")?.insertAdjacentElement("beforebegin", changeNotice);
+    let renderedFilters = { year: state.year, sex: state.sex, age: state.age };
+    const filterDisplayValue = (key, value) => {
+      if (key === "year") return value === "all"
+        ? (DATA.years.length > 1 ? `${DATA.years[0]}–${DATA.years[DATA.years.length - 1]}` : String(DATA.years[0]))
+        : String(value);
+      if (key === "sex") return value === "all" ? "оба пола" : value === "1" ? "мужчины" : "женщины";
+      return document.querySelector(`#ageSelect option[value="${value}"]`)?.textContent || "все возрасты";
+    };
+    const announceFilterChanges = () => {
+      const labels = { year: "Период", sex: "Пол", age: "Возраст" };
+      const selectors = { year: "#yearSelect", sex: "#sexSeg", age: "#ageSelect" };
+      const changes = Object.keys(labels).filter((key) => renderedFilters[key] !== state[key]);
+      if (!changes.length) return;
+      changeNotice.textContent = changes.map((key) =>
+        `${labels[key]}: ${filterDisplayValue(key, renderedFilters[key])} → ${filterDisplayValue(key, state[key])}`
+      ).join(" · ");
+      changeNotice.classList.remove("is-visible");
+      void changeNotice.offsetWidth;
+      changeNotice.classList.add("is-visible");
+      changes.forEach((key) => {
+        const control = document.querySelector(selectors[key]);
+        control?.classList.remove("site-filter-changed");
+        void control?.offsetWidth;
+        control?.classList.add("site-filter-changed");
+        window.setTimeout(() => control?.classList.remove("site-filter-changed"), 720);
+      });
+      window.clearTimeout(changeNotice.hideTimer);
+      changeNotice.hideTimer = window.setTimeout(() => changeNotice.classList.remove("is-visible"), 2300);
+      renderedFilters = { year: state.year, sex: state.sex, age: state.age };
+    };
+    const motionKey = (element, index, view) => {
+      if (view === "treemap") return `tile:${element.querySelector(".tile-code")?.textContent.trim() || index}`;
+      return `${view}:${element.tagName.toLowerCase()}:${index}`;
+    };
+    const motionNodes = (view) => {
+      const selector = motionSelectors[view];
+      return selector ? [...els.viz.querySelectorAll(selector)] : [];
+    };
+    const captureMotionSnapshot = (view) => {
+      if (motionDuration() === 0 || view === "map") return null;
+      const nodes = motionNodes(view);
+      if (!nodes.length || nodes.length > 240) return { bulk: true };
+      const boxes = new Map();
+      nodes.forEach((element, index) => {
+        const box = element.getBoundingClientRect();
+        if (box.width > 0 && box.height > 0) boxes.set(motionKey(element, index, view), box);
+      });
+      return { boxes };
+    };
+    const animateVizEntrance = (changedView = false) => {
+      const duration = motionDuration();
+      if (!duration || typeof els.viz.animate !== "function") return;
+      els.viz.animate(
+        [
+          { opacity: changedView ? .42 : .68, transform: changedView ? "translateY(7px) scale(.992)" : "translateY(3px)" },
+          { opacity: 1, transform: "translateY(0) scale(1)" }
+        ],
+        { duration, easing: "cubic-bezier(.2,.75,.25,1)" }
+      );
+    };
+    const animateMotionSnapshot = (snapshot, view) => {
+      const duration = motionDuration();
+      if (!duration || !snapshot) return;
+      if (snapshot.bulk) {
+        animateVizEntrance(false);
+        return;
+      }
+      const nodes = motionNodes(view);
+      const changed = [];
+      nodes.forEach((element, index) => {
+        if (typeof element.animate !== "function") return;
+        const current = element.getBoundingClientRect();
+        const previous = snapshot.boxes.get(motionKey(element, index, view));
+        if (!previous || !current.width || !current.height) {
+          element.animate(
+            [{ opacity: .2, transform: "scale(.96)" }, { opacity: 1, transform: "scale(1)" }],
+            { duration: Math.min(duration, 190), easing: "ease-out" }
+          );
+          return;
+        }
+        const deltaX = previous.left - current.left;
+        const deltaY = previous.top - current.top;
+        const scaleX = Math.max(.35, Math.min(2.5, previous.width / current.width));
+        const scaleY = Math.max(.35, Math.min(2.5, previous.height / current.height));
+        if (Math.abs(deltaX) < .5 && Math.abs(deltaY) < .5 && Math.abs(scaleX - 1) < .01 && Math.abs(scaleY - 1) < .01) return;
+        const changeScore = Math.abs(deltaX) / Math.max(current.width, 18)
+          + Math.abs(deltaY) / Math.max(current.height, 18)
+          + Math.abs(1 - scaleX)
+          + Math.abs(1 - scaleY);
+        if (changeScore > .12) changed.push({ element, score: changeScore });
+        element.animate(
+          [
+            { transform: `translate(${deltaX}px, ${deltaY}px) scale(${scaleX}, ${scaleY})`, opacity: .72 },
+            { transform: "translate(0, 0) scale(1, 1)", opacity: 1 }
+          ],
+          { duration, easing: "cubic-bezier(.2,.78,.25,1)" }
+        );
+      });
+      changed.sort((left, right) => right.score - left.score).slice(0, 3).forEach(({ element }) => {
+        element.classList.add("site-data-changed");
+        window.setTimeout(() => element.classList.remove("site-data-changed"), 1250);
+      });
+    };
+    const kpiFrames = new WeakMap();
+    const numericTextToken = (text) => String(text || "").match(/-?\d[\d\s\u00a0]*(?:[.,]\d+)?/);
+    const pulseChangedKpis = (before) => {
+      const duration = motionDuration();
+      document.querySelectorAll(".atlas-main .kpi b").forEach((element, index) => {
+        const nextText = element.textContent;
+        const priorTarget = element.dataset.atlasKpiTarget;
+        element.dataset.atlasKpiTarget = nextText;
+        const priorFrame = kpiFrames.get(element);
+        if (priorFrame) {
+          cancelAnimationFrame(priorFrame);
+          kpiFrames.delete(element);
+        }
+        if (!duration) {
+          element.textContent = nextText;
+          return;
+        }
+        if (nextText === before[index] || priorTarget === nextText) {
+          element.textContent = nextText;
+          return;
+        }
+        const fromToken = numericTextToken(before[index]);
+        const toToken = numericTextToken(nextText);
+        if (fromToken && toToken) {
+          const fromValue = Number(fromToken[0].replace(/[\s\u00a0]/g, "").replace(",", "."));
+          const toValue = Number(toToken[0].replace(/[\s\u00a0]/g, "").replace(",", "."));
+          const decimals = (toToken[0].split(/[.,]/)[1] || "").length;
+          if (Number.isFinite(fromValue) && Number.isFinite(toValue)) {
+            const formatter = new Intl.NumberFormat("ru-RU", {
+              minimumFractionDigits: decimals,
+              maximumFractionDigits: decimals
+            });
+            const started = performance.now();
+            const frame = (now) => {
+              const progress = Math.min(1, (now - started) / Math.max(180, duration * 1.45));
+              const eased = 1 - (1 - progress) ** 3;
+              const current = fromValue + (toValue - fromValue) * eased;
+              element.textContent = nextText.replace(toToken[0], formatter.format(current));
+              if (progress < 1) kpiFrames.set(element, requestAnimationFrame(frame));
+              else {
+                kpiFrames.delete(element);
+                element.textContent = nextText;
+              }
+            };
+            element.textContent = before[index];
+            kpiFrames.set(element, requestAnimationFrame(frame));
+          }
+        }
+        if (typeof element.animate === "function") {
+          element.animate(
+            [{ opacity: .48, transform: "translateY(3px)" }, { opacity: 1, transform: "translateY(0)" }],
+            { duration: Math.min(duration, 190), easing: "ease-out" }
+          );
+        }
+      });
+    };
+
     const baseRender = render;
+    let renderedView = state.view;
     render = () => {
-      if (state.view === "map") renderOptimizedMapView();
-      else baseRender();
-      syncGlobalControls();
-      writeUrlState();
-      addSupplementalControls();
-      enhanceTreemap();
-      enhanceDotogram();
-      enhanceMapPaletteLegend();
-      const svgButton = actionBox.querySelector('[data-atlas-action="svg"]');
-      svgButton.disabled = !document.querySelector("#viz svg");
-      svgButton.title = svgButton.disabled ? "Для этой визуализации SVG недоступен" : "Скачать текущий график в SVG";
-      requestAnimationFrame(highlightSearchTarget);
+      const previousView = renderedView;
+      const nextView = state.view;
+      const snapshot = previousView === nextView ? captureMotionSnapshot(previousView) : null;
+      const previousKpis = [...document.querySelectorAll(".atlas-main .kpi b")].map((element) => element.textContent);
+      announceFilterChanges();
+      els.viz.classList.add("is-updating");
+      const changedView = previousView !== nextView;
+      /*
+       * Full-card browser snapshots are slower than a direct WAAPI transition for
+       * the current self-contained atlases (32k–64k embedded records). Keep the
+       * native path only for future lightweight datasets.
+       */
+      const nativeViewTransition = changedView
+        && motionMode === "full"
+        && DATA.records.length < 10000
+        && typeof document.startViewTransition === "function";
+      const updateDom = () => {
+        els.viz.dataset.view = state.view;
+        if (state.view === "map") renderOptimizedMapView();
+        else baseRender();
+        if (drawerTitle) drawerTitle.textContent = VIEWS[state.view]?.[0] || "Параметры";
+        syncGlobalControls();
+        writeUrlState();
+        addSupplementalControls();
+        enhanceTreemap();
+        enhanceHeatmapContrast();
+        enhanceDotogram();
+        enhanceMapPaletteLegend();
+        const svgButton = actionBox.querySelector('[data-atlas-action="svg"]');
+        svgButton.disabled = !document.querySelector("#viz svg");
+        svgButton.title = svgButton.disabled ? "Для этой визуализации SVG недоступен" : "Скачать текущий график в SVG";
+        renderedView = nextView;
+        requestAnimationFrame(() => {
+          els.viz.classList.remove("is-updating");
+          if (changedView && !nativeViewTransition) animateVizEntrance(true);
+          else if (!changedView) animateMotionSnapshot(snapshot, nextView);
+          pulseChangedKpis(previousKpis);
+          highlightSearchTarget();
+        });
+      };
+      if (nativeViewTransition) {
+        document.querySelector(".atlas-main .card")?.style.setProperty("view-transition-name", "atlas-visual");
+        document.startViewTransition(updateDom);
+      } else {
+        updateDom();
+      }
     };
 
     document.querySelectorAll(".viz-btn").forEach((button) => {

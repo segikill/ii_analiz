@@ -38,6 +38,16 @@
       background: linear-gradient(90deg, #173969, #2f6fc5, #3da4a1);
     }
 
+    body.site-observatory-home {
+      background-color: #eef3f7;
+      background-image:
+        linear-gradient(rgba(67, 93, 128, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(67, 93, 128, .035) 1px, transparent 1px),
+        radial-gradient(circle at 92% 2%, rgba(76, 142, 226, .13), transparent 28%),
+        radial-gradient(circle at 7% 78%, rgba(34, 144, 146, .08), transparent 30%);
+      background-size: 34px 34px, 34px 34px, auto, auto;
+    }
+
     main {
       width: min(1260px, calc(100% - 44px));
       margin: 0 auto;
@@ -51,6 +61,16 @@
       align-items: end;
       padding: 0 4px 30px;
       border-bottom: 1px solid var(--line);
+    }
+
+    .page-eyebrow {
+      display: block;
+      margin-bottom: 8px;
+      color: #3f679c;
+      font-size: 11px;
+      font-weight: 850;
+      letter-spacing: .14em;
+      text-transform: uppercase;
     }
 
     h1 {
@@ -144,6 +164,20 @@
       transition: transform 150ms ease, box-shadow 150ms ease;
     }
 
+    .primary-report--sakhalin {
+      border-color: #257d8c;
+      background:
+        radial-gradient(circle at 92% 8%, rgba(142, 237, 230, .26), transparent 34%),
+        linear-gradient(135deg, #143a57, #146f7e 72%, #249a9c);
+    }
+
+    .primary-report--amur {
+      border-color: #356db9;
+      background:
+        radial-gradient(circle at 91% 7%, rgba(245, 198, 79, .31), transparent 32%),
+        linear-gradient(135deg, #172f5e, #245fb3 72%, #317dcb);
+    }
+
     .primary-report:hover,
     .primary-report:focus-visible {
       transform: translateY(-2px);
@@ -211,6 +245,68 @@
       gap: 9px;
       padding-left: 25px;
       border-left: 1px solid rgba(255, 255, 255, 0.20);
+    }
+
+    .region-visual {
+      position: relative;
+      display: grid;
+      min-height: 98px;
+      place-items: center;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, .15);
+      border-radius: 13px;
+      background:
+        linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px),
+        rgba(255,255,255,.055);
+      background-size: 18px 18px;
+    }
+
+    .region-visual svg {
+      width: 100%;
+      height: 94px;
+      overflow: visible;
+    }
+
+    .region-shape {
+      fill: rgba(255, 255, 255, .11);
+      stroke: rgba(255, 255, 255, .72);
+      stroke-width: 1.6;
+      vector-effect: non-scaling-stroke;
+      transition: fill 240ms ease, filter 240ms ease, stroke 240ms ease;
+    }
+
+    .region-centers circle {
+      fill: #fff;
+      stroke: rgba(17, 50, 80, .42);
+      stroke-width: 1;
+      opacity: .36;
+      transform-box: fill-box;
+      transform-origin: center;
+      transition: opacity 180ms ease, transform 240ms ease;
+    }
+
+    .region-visual small {
+      position: absolute;
+      right: 8px;
+      bottom: 5px;
+      color: rgba(255,255,255,.68);
+      font-size: 8px;
+      font-weight: 750;
+      letter-spacing: .04em;
+    }
+
+    .primary-report:hover .region-shape,
+    .primary-report:focus-visible .region-shape {
+      fill: rgba(255, 255, 255, .18);
+      stroke: #fff;
+      filter: drop-shadow(0 0 7px rgba(255,255,255,.34));
+    }
+
+    .primary-report:hover .region-centers circle,
+    .primary-report:focus-visible .region-centers circle {
+      opacity: .92;
+      transform: scale(1.35);
     }
 
     .summary-item {
@@ -329,6 +425,19 @@
       text-align: center;
     }
 
+    .page-head,
+    .region {
+      animation: home-rise 440ms cubic-bezier(.2,.75,.25,1) both;
+    }
+
+    .region:nth-of-type(1) { animation-delay: 70ms; }
+    .region:nth-of-type(2) { animation-delay: 130ms; }
+
+    @keyframes home-rise {
+      from { opacity: 0; transform: translateY(9px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
     @media (max-width: 980px) {
       .page-head { grid-template-columns: 1fr; }
       .page-stat { display: none; }
@@ -336,14 +445,23 @@
       .primary-summary { grid-template-columns: repeat(3, 1fr); padding: 18px 0 0; border-left: 0; border-top: 1px solid rgba(255,255,255,.2); }
       .secondary-reports, .secondary-reports.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .001ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .001ms !important;
+      }
+    }
   </style>
-  <link rel="stylesheet" href="assets/site.css">
-  <script defer src="assets/site.js"></script>
+  <link rel="stylesheet" href="assets/site.css?v=observatory-20260728-2">
+  <script defer src="assets/site.js?v=observatory-20260728-2"></script>
 </head>
-<body>
+<body class="site-observatory-home">
   <main>
     <header class="page-head">
       <div>
+        <span class="page-eyebrow">Региональная аналитическая обсерватория</span>
         <h1>Аналитика смертности по регионам</h1>
         <p class="lead">Основные интерактивные атласы объединяют структуру МКБ-10, возраст, пол и территорию. Тематические исследования и статические отчёты собраны ниже компактными блоками.</p>
       </div>
@@ -362,7 +480,7 @@
         <a class="region-link" href="sakhalin/index.html">Все материалы региона →</a>
       </div>
 
-      <a class="primary-report" href="sakhalin/icd_treemap/index.html">
+      <a class="primary-report primary-report--sakhalin" href="sakhalin/icd_treemap/index.html">
         <span>
           <span class="primary-kicker">Основной интерактивный отчёт</span>
           <h3>Интерактивный атлас смертности</h3>
@@ -373,9 +491,17 @@
           <span class="primary-action">Открыть интерактивный атлас</span>
         </span>
         <span class="primary-summary" aria-hidden="true">
-          <span class="summary-item"><strong>7</strong><span>связанных визуализаций</span></span>
-          <span class="summary-item"><strong>10</strong><span>лет наблюдений, 2016–2025</span></span>
-          <span class="summary-item"><strong>187</strong><span>населённых пунктов на карте</span></span>
+          <span class="region-visual">
+            <svg viewBox="0 0 260 100">
+              <path class="region-shape" d="M126 5c9 7 8 16 5 24-4 10-2 18 2 27 4 11 2 21-5 31-4 6-9 8-13 5-5-4-3-12 1-19 5-9 4-17-1-26-5-10-6-20-1-31 3-7 6-10 11-13Z"/>
+              <path class="region-shape" d="M151 72c14 5 25 11 38 15m-27-7 9 11m17-4 12 6m-44-18 7 2" fill="none"/>
+              <g class="region-centers"><circle cx="125" cy="72" r="3.3"/><circle cx="122" cy="51" r="2.5"/><circle cx="129" cy="28" r="2.3"/><circle cx="163" cy="80" r="2"/></g>
+            </svg>
+            <small>контур региона · ключевые центры</small>
+          </span>
+          <span class="summary-item"><strong>64 677</strong><span>обезличенных наблюдений</span></span>
+          <span class="summary-item"><strong>IX</strong><span>ведущий класс · кровообращение</span></span>
+          <span class="summary-item"><strong>67</strong><span>лет · медианный возраст</span></span>
         </span>
       </a>
 
@@ -413,7 +539,7 @@
         <a class="region-link" href="amur/index.html">Все материалы региона →</a>
       </div>
 
-      <a class="primary-report" href="amur/icd_treemap/index.html">
+      <a class="primary-report primary-report--amur" href="amur/icd_treemap/index.html">
         <span>
           <span class="primary-kicker">Основной интерактивный отчёт</span>
           <h3>Интерактивный атлас смертности</h3>
@@ -424,9 +550,16 @@
           <span class="primary-action">Открыть интерактивный атлас</span>
         </span>
         <span class="primary-summary" aria-hidden="true">
-          <span class="summary-item"><strong>7</strong><span>связанных визуализаций</span></span>
-          <span class="summary-item"><strong>3</strong><span>года наблюдений, 2023–2025</span></span>
-          <span class="summary-item"><strong>506</strong><span>НП с данными о смертности</span></span>
+          <span class="region-visual">
+            <svg viewBox="0 0 260 100">
+              <path class="region-shape" d="M66 20 102 7l42 10 30-3 26 19-7 26-25 8-13 21-42-2-21 8-31-18-4-29Z"/>
+              <g class="region-centers"><circle cx="94" cy="73" r="3.4"/><circle cx="137" cy="41" r="2.4"/><circle cx="113" cy="58" r="2.2"/><circle cx="166" cy="56" r="2"/></g>
+            </svg>
+            <small>контур региона · ключевые центры</small>
+          </span>
+          <span class="summary-item"><strong>32 942</strong><span>обезличенных наблюдений</span></span>
+          <span class="summary-item"><strong>IX</strong><span>ведущий класс · кровообращение</span></span>
+          <span class="summary-item"><strong>67</strong><span>лет · медианный возраст</span></span>
         </span>
       </a>
 
